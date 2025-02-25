@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Hex Strategy Game</title>
+    <!-- Стили для аккуратного отображения -->
     <style>
         canvas { border: 1px solid black; }
         #info { margin: 10px; }
@@ -11,10 +12,11 @@
     </style>
 </head>
 <body>
-    <div id="info"></div>
-    <canvas id="gameCanvas"></canvas>
-    <div id="status"></div>
+    <div id="info"></div> <!-- Панель информации: текущий ход и монеты -->
+    <canvas id="gameCanvas"></canvas> <!-- Игровое поле -->
+    <div id="status"></div> <!-- Сообщения об ошибках или статусе -->
     <div>
+        <!-- Кнопки действий -->
         <button onclick="endTurn()">End Turn</button>
         <button onclick="build('farm')">Build Farm</button>
         <button onclick="build('weak_tower')">Build Weak Tower</button>
@@ -27,17 +29,19 @@
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        const radius = 30;
-        let gameState = null;
-        let selectedCell = null;
-        let hoveredCell = null;
-        let availableMoves = [];
+        const radius = 30; // Радиус шестиугольника
+        let gameState = null; // Текущее состояние игры
+        let selectedCell = null; // Выбранная клетка
+        let hoveredCell = null; // Клетка под курсором
+        let availableMoves = []; // Доступные ходы юнита
 
+        // Цвета для визуализации
         const colors = {
             null: '#FFFFFF', 'player1': '#FF9999', 'player2': '#9999FF',
             'townhall': '#FFD700', 'farm': '#90EE90', 'weak_tower': '#FFA500', 'strong_tower': '#FF4500'
         };
 
+        // Обновление состояния игры с сервера
         async function updateGameState() {
             const response = await fetch('/state');
             gameState = await response.json();
@@ -47,14 +51,14 @@
             updateInfo();
         }
 
+        // Рисование шестиугольника
         function drawHex(x, y, color, text = '') {
             ctx.beginPath();
             for (let i = 0; i < 6; i++) {
                 const angle = (Math.PI / 3) * i;
                 const hx = x + radius * Math.cos(angle);
                 const hy = y + radius * Math.sin(angle);
-                if (i === 0) ctx.moveTo(hx, hy);
-                else ctx.lineTo(hx, hy);
+                i === 0 ? ctx.moveTo(hx, hy) : ctx.lineTo(hx, hy);
             }
             ctx.closePath();
             ctx.fillStyle = color;
@@ -67,6 +71,7 @@
             }
         }
 
+        // Отрисовка карты с подсветкой
         function drawMap() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             gameState.grid.forEach((row, i) =>
@@ -79,6 +84,7 @@
                     if (cell.building) drawHex(x, y, colors[cell.building]);
                     if (cell.unit) drawHex(x, y, colors[cell.owner] || '#FFFFFF', cell.unit);
 
+                    // Подсветка выбранной клетки
                     if (selectedCell && selectedCell.x === j && selectedCell.y === i) {
                         ctx.strokeStyle = '#00FF00';
                         ctx.lineWidth = 3;
@@ -87,13 +93,13 @@
                             const angle = (Math.PI / 3) * k;
                             const hx = x + radius * Math.cos(angle);
                             const hy = y + radius * Math.sin(angle);
-                            if (k === 0) ctx.moveTo(hx, hy);
-                            else ctx.lineTo(hx, hy);
+                            k === 0 ? ctx.moveTo(hx, hy) : ctx.lineTo(hx, hy);
                         }
                         ctx.closePath();
                         ctx.stroke();
                         ctx.lineWidth = 1;
                     }
+                    // Подсветка клетки под курсором
                     if (hoveredCell && hoveredCell.x === j && hoveredCell.y === i) {
                         ctx.strokeStyle = '#FFFF00';
                         ctx.lineWidth = 2;
@@ -102,13 +108,13 @@
                             const angle = (Math.PI / 3) * k;
                             const hx = x + radius * Math.cos(angle);
                             const hy = y + radius * Math.sin(angle);
-                            if (k === 0) ctx.moveTo(hx, hy);
-                            else ctx.lineTo(hx, hy);
+                            k === 0 ? ctx.moveTo(hx, hy) : ctx.lineTo(hx, hy);
                         }
                         ctx.closePath();
                         ctx.stroke();
                         ctx.lineWidth = 1;
                     }
+                    // Подсветка доступных ходов
                     if (availableMoves.some(m => m.x === j && m.y === i)) {
                         ctx.strokeStyle = '#0000FF';
                         ctx.lineWidth = 2;
@@ -117,8 +123,7 @@
                             const angle = (Math.PI / 3) * k;
                             const hx = x + radius * Math.cos(angle);
                             const hy = y + radius * Math.sin(angle);
-                            if (k === 0) ctx.moveTo(hx, hy);
-                            else ctx.lineTo(hx, hy);
+                            k === 0 ? ctx.moveTo(hx, hy) : ctx.lineTo(hx, hy);
                         }
                         ctx.closePath();
                         ctx.stroke();
@@ -128,17 +133,20 @@
             );
         }
 
+        // Обновление информации о ходе и монетах
         function updateInfo() {
             const info = document.getElementById('info');
             info.innerHTML = `Current Turn: ${gameState.current_turn}<br>` +
                 gameState.players.map(p => `${p.name}: ${p.coins} coins`).join('<br>');
         }
 
+        // Отображение временных сообщений
         function showStatus(message) {
             document.getElementById('status').innerText = message;
             setTimeout(() => document.getElementById('status').innerText = '', 3000);
         }
 
+        // Завершение хода: доход и смена игрока
         async function endTurn() {
             try {
                 const response = await fetch('/end_turn', {
@@ -147,6 +155,7 @@
                     body: JSON.stringify({})
                 });
                 if (!response.ok) throw new Error(await response.text());
+                selectedCell = null;
                 availableMoves = [];
                 await updateGameState();
             } catch (e) {
@@ -154,6 +163,7 @@
             }
         }
 
+        // Постройка здания
         async function build(building) {
             if (!selectedCell) return showStatus('Select a cell first!');
             try {
@@ -176,6 +186,7 @@
             }
         }
 
+        // Создание юнита
         async function spawnUnit(level) {
             if (!selectedCell) return showStatus('Select a cell first!');
             try {
@@ -198,6 +209,7 @@
             }
         }
 
+        // Запрос доступных ходов юнита
         async function getMoves(x, y) {
             try {
                 const response = await fetch('/get_moves', {
@@ -218,6 +230,7 @@
             }
         }
 
+        // Преобразование координат клика в индексы гексагональной сетки
         function getHexCoordinates(e) {
             const rect = canvas.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
@@ -232,16 +245,19 @@
             return null;
         }
 
+        // Подсветка при наведении курсора
         canvas.addEventListener('mousemove', (e) => {
             hoveredCell = getHexCoordinates(e);
             drawMap();
         });
 
+        // Сброс подсветки при уходе курсора
         canvas.addEventListener('mouseleave', () => {
             hoveredCell = null;
             drawMap();
         });
 
+        // Обработка кликов: выбор юнита и перемещение/слияние
         canvas.addEventListener('click', async (e) => {
             const coord = getHexCoordinates(e);
             if (!coord) return;
@@ -276,6 +292,7 @@
             }
         });
 
+        // Начальная загрузка игры
         updateGameState();
     </script>
 </body>
