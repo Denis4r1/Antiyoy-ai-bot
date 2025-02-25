@@ -1,6 +1,6 @@
-'''
+"""
 temp for debug
-'''
+"""
 
 import pygame
 import sys
@@ -23,6 +23,7 @@ def draw_field(field, surface):
             text_rect = text.get_rect(center=tile.center)
             surface.blit(text, text_rect)
 
+
 running = True
 while running:
     for event in pygame.event.get():
@@ -31,7 +32,7 @@ while running:
         elif event.type == pygame.MOUSEBUTTONDOWN:
             pos = pygame.mouse.get_pos()
             # field.handleClick(*pos)
-    
+
     screen.fill(WHITE)
     draw_field(field, screen)
     pygame.display.flip()

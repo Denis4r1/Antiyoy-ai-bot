@@ -1,6 +1,6 @@
 import math
 
-from const import * 
+from const import *
 
 
 class Tile:
@@ -34,8 +34,16 @@ class Tile:
             directions = [(0, -1), (0, 1), (-1, 0), (1, -1), (1, 0), (1, 1)]
         else:
             directions = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, 0)]
-        neighbors = [(self.i + x, self.j + y) for x, y in directions 
-                     if (self.i + x >= 0 + GAP and self.i + x <= rows - GAP and self.j + y >= 0 + GAP and self.j + y <= cols - y)]
+        neighbors = [
+            (self.i + x, self.j + y)
+            for x, y in directions
+            if (
+                self.i + x >= 0 + GAP
+                and self.i + x <= rows - GAP
+                and self.j + y >= 0 + GAP
+                and self.j + y <= cols - y
+            )
+        ]
         return neighbors
 
     def getDeg(self, grid, type=MAP_VAL):
@@ -48,7 +56,6 @@ class Tile:
     @property
     def color(self):
         return COLOR_MAPPING.get(self.tile_type, WHITE)
-        
 
     @property
     def text_color(self):

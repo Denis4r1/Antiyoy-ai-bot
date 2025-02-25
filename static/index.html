@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Hex Strategy Game</title>
+    <style>
+        canvas { border: 1px solid black; }
+        #info { margin: 10px; }
+        button { margin: 5px; }
+        #status { margin: 10px; color: red; }
+    </style>
+</head>
+<body>
+    <div id="info"></div>
+    <canvas id="gameCanvas"></canvas>
+    <div id="status"></div>
+    <div>
+        <button onclick="endTurn()">End Turn</button>
+        <button onclick="build('farm')">Build Farm</button>
+        <button onclick="build('weak_tower')">Build Weak Tower</button>
+        <button onclick="build('strong_tower')">Build Strong Tower</button>
+        <button onclick="spawnUnit(1)">Spawn Unit 1</button>
+        <button onclick="spawnUnit(2)">Spawn Unit 2</button>
+        <button onclick="spawnUnit(3)">Spawn Unit 3</button>
+        <button onclick="spawnUnit(4)">Spawn Unit 4</button>
+    </div>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const radius = 30;
+        let gameState = null;
+        let selectedCell = null;
+        let hoveredCell = null;
+        let availableMoves = [];
+
+        const colors = {
+            null: '#FFFFFF', 'player1': '#FF9999', 'player2': '#9999FF',
+            'townhall': '#FFD700', 'farm': '#90EE90', 'weak_tower': '#FFA500', 'strong_tower': '#FF4500'
+        };
+
+        async function updateGameState() {
+            const response = await fetch('/state');
+            gameState = await response.json();
+            canvas.width = gameState.cols * 1.5 * radius + radius;
+            canvas.height = gameState.rows * Math.sqrt(3) * radius + radius;
+            drawMap();
+            updateInfo();
+        }
+
+        function drawHex(x, y, color, text = '') {
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+                const angle = (Math.PI / 3) * i;
+                const hx = x + radius * Math.cos(angle);
+                const hy = y + radius * Math.sin(angle);
+                if (i === 0) ctx.moveTo(hx, hy);
+                else ctx.lineTo(hx, hy);
+            }
+            ctx.closePath();
+            ctx.fillStyle = color;
+            ctx.fill();
+            ctx.strokeStyle = '#000000';
+            ctx.stroke();
+            if (text) {
+                ctx.fillStyle = '#000000';
+                ctx.fillText(text, x - 5, y + 5);
+            }
+        }
+
+        function drawMap() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            gameState.grid.forEach((row, i) =>
+                row.forEach((cell, j) => {
+                    const x = j * 1.5 * radius + radius;
+                    let y = i * Math.sqrt(3) * radius + radius;
+                    if (j % 2 === 1) y += Math.sqrt(3) * radius / 2;
+                    const color = colors[cell.owner] || '#FFFFFF';
+                    drawHex(x, y, color);
+                    if (cell.building) drawHex(x, y, colors[cell.building]);
+                    if (cell.unit) drawHex(x, y, colors[cell.owner] || '#FFFFFF', cell.unit);
+
+                    if (selectedCell && selectedCell.x === j && selectedCell.y === i) {
+                        ctx.strokeStyle = '#00FF00';
+                        ctx.lineWidth = 3;
+                        ctx.beginPath();
+                        for (let k = 0; k < 6; k++) {
+                            const angle = (Math.PI / 3) * k;
+                            const hx = x + radius * Math.cos(angle);
+                            const hy = y + radius * Math.sin(angle);
+                            if (k === 0) ctx.moveTo(hx, hy);
+                            else ctx.lineTo(hx, hy);
+                        }
+                        ctx.closePath();
+                        ctx.stroke();
+                        ctx.lineWidth = 1;
+                    }
+                    if (hoveredCell && hoveredCell.x === j && hoveredCell.y === i) {
+                        ctx.strokeStyle = '#FFFF00';
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        for (let k = 0; k < 6; k++) {
+                            const angle = (Math.PI / 3) * k;
+                            const hx = x + radius * Math.cos(angle);
+                            const hy = y + radius * Math.sin(angle);
+                            if (k === 0) ctx.moveTo(hx, hy);
+                            else ctx.lineTo(hx, hy);
+                        }
+                        ctx.closePath();
+                        ctx.stroke();
+                        ctx.lineWidth = 1;
+                    }
+                    if (availableMoves.some(m => m.x === j && m.y === i)) {
+                        ctx.strokeStyle = '#0000FF';
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        for (let k = 0; k < 6; k++) {
+                            const angle = (Math.PI / 3) * k;
+                            const hx = x + radius * Math.cos(angle);
+                            const hy = y + radius * Math.sin(angle);
+                            if (k === 0) ctx.moveTo(hx, hy);
+                            else ctx.lineTo(hx, hy);
+                        }
+                        ctx.closePath();
+                        ctx.stroke();
+                        ctx.lineWidth = 1;
+                    }
+                })
+            );
+        }
+
+        function updateInfo() {
+            const info = document.getElementById('info');
+            info.innerHTML = `Current Turn: ${gameState.current_turn}<br>` +
+                gameState.players.map(p => `${p.name}: ${p.coins} coins`).join('<br>');
+        }
+
+        function showStatus(message) {
+            document.getElementById('status').innerText = message;
+            setTimeout(() => document.getElementById('status').innerText = '', 3000);
+        }
+
+        async function endTurn() {
+            try {
+                const response = await fetch('/end_turn', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                if (!response.ok) throw new Error(await response.text());
+                availableMoves = [];
+                await updateGameState();
+            } catch (e) {
+                showStatus(`Error: ${e.message}`);
+            }
+        }
+
+        async function build(building) {
+            if (!selectedCell) return showStatus('Select a cell first!');
+            try {
+                const response = await fetch('/build', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        building: building,
+                        x: selectedCell.x,
+                        y: selectedCell.y,
+                        player_name: gameState.current_turn
+                    })
+                });
+                if (!response.ok) throw new Error(await response.text());
+                selectedCell = null;
+                availableMoves = [];
+                await updateGameState();
+            } catch (e) {
+                showStatus(`Error: ${e.message}`);
+            }
+        }
+
+        async function spawnUnit(level) {
+            if (!selectedCell) return showStatus('Select a cell first!');
+            try {
+                const response = await fetch('/spawn_unit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        level: level,
+                        x: selectedCell.x,
+                        y: selectedCell.y,
+                        player_name: gameState.current_turn
+                    })
+                });
+                if (!response.ok) throw new Error(await response.text());
+                selectedCell = null;
+                availableMoves = [];
+                await updateGameState();
+            } catch (e) {
+                showStatus(`Error: ${e.message}`);
+            }
+        }
+
+        async function getMoves(x, y) {
+            try {
+                const response = await fetch('/get_moves', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        x: x,
+                        y: y,
+                        player_name: gameState.current_turn
+                    })
+                });
+                if (!response.ok) throw new Error(await response.text());
+                const data = await response.json();
+                availableMoves = data.moves;
+                drawMap();
+            } catch (e) {
+                showStatus(`Error: ${e.message}`);
+            }
+        }
+
+        function getHexCoordinates(e) {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            const j = Math.floor(mouseX / (1.5 * radius));
+            const x = j * 1.5 * radius + radius;
+            let y = mouseY - (j % 2 === 1 ? Math.sqrt(3) * radius / 2 : 0);
+            const i = Math.floor(y / (Math.sqrt(3) * radius));
+            if (i >= 0 && i < gameState.rows && j >= 0 && j < gameState.cols) {
+                return { x: j, y: i };
+            }
+            return null;
+        }
+
+        canvas.addEventListener('mousemove', (e) => {
+            hoveredCell = getHexCoordinates(e);
+            drawMap();
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            hoveredCell = null;
+            drawMap();
+        });
+
+        canvas.addEventListener('click', async (e) => {
+            const coord = getHexCoordinates(e);
+            if (!coord) return;
+
+            if (selectedCell && gameState.grid[selectedCell.y][selectedCell.x].unit) {
+                try {
+                    const response = await fetch('/move_unit', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            from_x: selectedCell.x,
+                            from_y: selectedCell.y,
+                            to_x: coord.x,
+                            to_y: coord.y,
+                            player_name: gameState.current_turn
+                        })
+                    });
+                    if (!response.ok) throw new Error(await response.text());
+                    selectedCell = null;
+                    availableMoves = [];
+                    await updateGameState();
+                } catch (e) {
+                    showStatus(`Error: ${e.message}`);
+                }
+            } else if (gameState.grid[coord.y][coord.x].unit && gameState.grid[coord.y][coord.x].owner === gameState.current_turn) {
+                selectedCell = { x: coord.x, y: coord.y };
+                await getMoves(coord.x, coord.y);
+            } else {
+                selectedCell = { x: coord.x, y: coord.y };
+                availableMoves = [];
+                drawMap();
+            }
+        });
+
+        updateGameState();
+    </script>
+</body>
+</html>
