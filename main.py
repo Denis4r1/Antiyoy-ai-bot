@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from typing import List
 import random
 
-from dir.field import Field, EntityType  # Импорт игровых классов
+from src.field import Field, EntityType  # Импорт игровых классов
 
 
 # Импорт моделей запросов
