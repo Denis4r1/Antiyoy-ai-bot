@@ -1,6 +1,7 @@
 import math
+from typing import List, Optional, Dict
 
-from const import *
+from .const import *
 
 
 class Tile:
