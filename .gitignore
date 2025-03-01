@@ -23,7 +23,6 @@ instance/
 Pipfile
 Pipfile.lock
 poetry.lock
-requirements.txt
 
 # Logs and debugging
 logs/
