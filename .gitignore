@@ -1,0 +1,68 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C Extension
+*.so
+
+# Virtual environments
+venv/
+.env/
+.venv/
+env/
+ENV/
+
+# FastAPI-specific
+instance/
+*.db
+*.sqlite3
+*.pkl
+
+# Dependency files
+Pipfile
+Pipfile.lock
+poetry.lock
+
+# Logs and debugging
+logs/
+*.log
+debug.log
+
+# Editor and IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-workspace
+*.sublime-project
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Docker and CI/CD
+docker-compose.override.yml
+*.dockerfile
+*.envrc
+.envrc
+.env.*
+
+# Coverage and test reports
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.pytest_cache/
+
+# Jupyter notebooks checkpoints
+.ipynb_checkpoints/
+
+# Migrations (if using Alembic)
+migrations/versions/*.pyc
+migrations/versions/*.py~
+
+# Compiled files
+*.pyc
+*.pyo
