@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Hexagonal grid game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+
+        /* Основной контейнер игры */
+        #game {
+            padding: 20px;
+        }
+
+        /* Контейнер для поля и информации о территориях */
+        .game-container {
+            display: flex;
+            align-items: flex-start;
+            gap: 20px;
+            justify-content: flex-start;
+            /* выравнивание по левому краю */
+        }
+
+        /* Левая колонка – поле для игры */
+        #gameCanvasContainer {
+            flex: 1;
+        }
+
+        /* Правая колонка – информация о территориях */
+        #territoryInfoContainer {
+            width: 250px;
+            border: 1px solid #ccc;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+
+        canvas {
+            border: 1px solid #000;
+            margin-top: 10px;
+        }
+
+        /* Контейнер для кнопок управления */
+        #controls {
+            margin-top: 20px;
+        }
+
+        button {
+            margin: 5px;
+        }
+
+        #status {
+            color: red;
+            margin: 10px 0;
+        }
+
+        #gameCanvasContainer {
+            flex: 0 0 auto;
+        }
+
+        #territoryInfoContainer {
+            /* Убираем фиксированную ширину */
+            /* width: 250px; */
+            min-width: 250px;
+            /* если нужен минимум */
+            width: auto;
+            /* ширина определяется содержимым */
+            flex-shrink: 0;
+            /* не сжимается, если есть длинный текст */
+            border: 1px solid #ccc;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Игровой экран -->
+    <div id="game">
+        <div id="userNameDisplay"></div>
+        <div id="turnStatus"></div>
+        <!-- Контейнер, который размещает поле и информацию о территориях в одной строке -->
+        <div class="game-container">
+            <div id="gameCanvasContainer">
+                <canvas id="gameCanvas"></canvas>
+            </div>
+            <div id="territoryInfoContainer">
+                <div id="territoryInfo"></div>
+            </div>
+        </div>
+        <!-- Контейнер с кнопками управления -->
+        <div id="controls">
+            <button id="endTurnBtn">End Turn</button>
+            <button id="buildFarmBtn">Build Farm</button>
+            <button id="buildWeakTowerBtn">Build Weak Tower</button>
+            <button id="buildStrongTowerBtn">Build Strong Tower</button>
+            <button id="spawnUnit1Btn">Spawn Unit 1</button>
+            <button id="spawnUnit2Btn">Spawn Unit 2</button>
+            <button id="spawnUnit3Btn">Spawn Unit 3</button>
+            <button id="spawnUnit4Btn">Spawn Unit 4</button>
+            <button id="deselectBtn">Deselect</button>
+        </div>
+        <div id="status"></div>
+    </div>
+    <script type="module" src="/static/gamepage.js"></script>
+</body>
+
+</html>
