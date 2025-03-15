@@ -654,7 +654,8 @@ class Field:
 
             # Создаем юнит обычным способом
             cell.entity = get_unit_type_by_level(level)
-
+            
+        cell.has_moved = True
         territory.funds -= cost
 
     def move_unit(self, from_x: int, from_y: int, to_x: int, to_y: int, player_name: str):
@@ -723,7 +724,7 @@ class Field:
         # self.territory_manager.update_territories()
 
         # Проверяем условие победы: если на поле присутствует только один владелец клеток, он выигрывает.
-        owners_present = {cell.owner for cell in self.cells.values() if cell.owner is not None}
+        owners_present = {t.owner for t in self.territory_manager.territories if t.owner is not None}
         if len(owners_present) == 1:
             return owners_present.pop()
 
@@ -807,6 +808,13 @@ class TerritoryManager:
     def __init__(self, field: Field, territories: List[Territory]):
         self.field = field
         self.territories = territories
+
+
+    def has_territories(self, owner: str) -> bool:
+        """
+        Проверяет, имеет ли игрок owner хотя бы одну территорию.
+        """
+        return any(territory.owner == owner for territory in self.territories)
 
     def update_territories(self):
         """
