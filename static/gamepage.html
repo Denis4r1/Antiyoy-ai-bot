@@ -4,105 +4,182 @@
 <head>
     <meta charset="UTF-8">
     <title>Hexagonal grid game</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
+        html,
         body {
+            margin: 0;
+            padding: 0;
             font-family: Arial, sans-serif;
         }
 
-        /* Основной контейнер игры */
         #game {
+            box-sizing: border-box;
+            width: 100%;
+            max-width: 900px;
+            /* чтобы на супершироких экранах не растягивалось */
+
+            margin: 0 auto;
             padding: 20px;
         }
 
-        /* Контейнер для поля и информации о территориях */
-        .game-container {
-            display: flex;
-            align-items: flex-start;
+        /* 
+      Grid-контейнер, в котором три основные области:
+      1) canvas
+      2) controls
+      3) territory
+    */
+        .grid-container {
+            display: grid;
             gap: 20px;
-            justify-content: flex-start;
-            /* выравнивание по левому краю */
+            /* расстояние между ячейками */
         }
 
-        /* Левая колонка – поле для игры */
+        @media (max-width: 600px) {
+            .grid-container {
+                /* Одна колонка, три строки */
+                grid-template-columns: 1fr;
+                grid-template-rows: auto auto auto;
+                /* Имена областей (area) по порядку */
+                grid-template-areas:
+                    "canvas"
+                    "controls"
+                    "territory";
+            }
+        }
+
+        /* --- На больших экранах (шире 600px) --- */
+        @media (min-width: 601px) {
+            .grid-container {
+                /* Две колонки: первая растягивается, вторая ~ 250px */
+                grid-template-columns: 1fr 250px;
+                /* Две строки (первая — для canvas/territory, вторая — для controls) */
+                grid-template-rows: auto auto;
+                /* Объявляем расположение областей */
+                grid-template-areas:
+                    "canvas territory"
+                    "controls controls";
+            }
+        }
+
+        /* Привязываем каждый блок к своей grid-области */
         #gameCanvasContainer {
-            flex: 1;
+            grid-area: canvas;
+            border: 1px solid #ccc;
+            /* для наглядности */
         }
 
-        /* Правая колонка – информация о территориях */
-        #territoryInfoContainer {
-            width: 250px;
+        #controls {
+            grid-area: controls;
             border: 1px solid #ccc;
+            /* для наглядности */
             padding: 10px;
             box-sizing: border-box;
         }
 
+        #territoryInfoContainer {
+            grid-area: territory;
+            border: 1px solid #ccc;
+            /* для наглядности */
+            padding: 10px;
+            box-sizing: border-box;
+            min-width: 50px;
+            /* чтобы совсем не схлопывалось */
+        }
+
+        /* Стили для Canvas */
         canvas {
             border: 1px solid #000;
-            margin-top: 10px;
+            max-width: 100%;
+            /* позволяет сжиматься под размеры grid-ячейки */
+            height: auto;
+            /* сохраняем пропорции */
+            display: block;
         }
 
-        /* Контейнер для кнопок управления */
-        #controls {
-            margin-top: 20px;
+        /* Кнопки */
+        .button-group {
+            display: inline-block;
+            border: 1px solid #ccc;
+            margin-bottom: 10px;
         }
 
-        button {
+        .button-group legend {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .button-group button {
+            display: inline-block;
+            font-size: 16px;
             margin: 5px;
+            padding: 5px 10px;
+            cursor: pointer;
         }
 
         #status {
             color: red;
-            margin: 10px 0;
-        }
-
-        #gameCanvasContainer {
-            flex: 0 0 auto;
-        }
-
-        #territoryInfoContainer {
-            /* Убираем фиксированную ширину */
-            /* width: 250px; */
-            min-width: 250px;
-            /* если нужен минимум */
-            width: auto;
-            /* ширина определяется содержимым */
-            flex-shrink: 0;
-            /* не сжимается, если есть длинный текст */
-            border: 1px solid #ccc;
-            padding: 10px;
-            box-sizing: border-box;
+            margin-top: 10px;
         }
     </style>
 </head>
 
 <body>
-    <!-- Игровой экран -->
     <div id="game">
+
+        <!-- Отображаем имя игрока, статус и т.д. -->
         <div id="userNameDisplay"></div>
         <div id="turnStatus"></div>
-        <!-- Контейнер, который размещает поле и информацию о территориях в одной строке -->
-        <div class="game-container">
+
+        <!-- Grid-контейнер с тремя зонами: 
+         1) Canvas
+         2) Controls
+         3) Territory
+        -->
+        <div class="grid-container">
+
+            <!-- (1) Canvas -->
             <div id="gameCanvasContainer">
                 <canvas id="gameCanvas"></canvas>
             </div>
+
+            <!-- (2) Controls -->
+            <div id="controls">
+                <!-- Группа: Юниты -->
+                <fieldset class="button-group">
+                    <legend>Юниты</legend>
+                    <button id="spawnUnit1Btn">Unit 1</button>
+                    <button id="spawnUnit2Btn">Unit 2</button>
+                    <button id="spawnUnit3Btn">Unit 3</button>
+                    <button id="spawnUnit4Btn">Unit 4</button>
+                </fieldset>
+
+                <!-- Группа: Постройки -->
+                <fieldset class="button-group">
+                    <legend>Постройки</legend>
+                    <button id="buildFarmBtn">Farm</button>
+                    <button id="buildWeakTowerBtn">Weak Tower</button>
+                    <button id="buildStrongTowerBtn">Strong Tower</button>
+                </fieldset>
+
+                <!-- Группа: Ход -->
+                <fieldset class="button-group">
+                    <legend>Ход</legend>
+                    <button id="endTurnBtn">End Turn</button>
+                    <button id="deselectBtn">Deselect</button>
+                </fieldset>
+            </div>
+
+            <!-- (3) Territories -->
             <div id="territoryInfoContainer">
                 <div id="territoryInfo"></div>
             </div>
         </div>
-        <!-- Контейнер с кнопками управления -->
-        <div id="controls">
-            <button id="endTurnBtn">End Turn</button>
-            <button id="buildFarmBtn">Build Farm</button>
-            <button id="buildWeakTowerBtn">Build Weak Tower</button>
-            <button id="buildStrongTowerBtn">Build Strong Tower</button>
-            <button id="spawnUnit1Btn">Spawn Unit 1</button>
-            <button id="spawnUnit2Btn">Spawn Unit 2</button>
-            <button id="spawnUnit3Btn">Spawn Unit 3</button>
-            <button id="spawnUnit4Btn">Spawn Unit 4</button>
-            <button id="deselectBtn">Deselect</button>
-        </div>
+
+        <!-- Статус-блок (ошибки, уведомления) -->
         <div id="status"></div>
     </div>
+
     <script type="module" src="/static/gamepage.js"></script>
 </body>
 
