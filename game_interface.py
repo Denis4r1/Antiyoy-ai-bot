@@ -1,0 +1,315 @@
+import json
+import uvicorn
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from typing import List, Dict, Any, Optional, Tuple
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
+
+
+from src.gamecontroller import GameController
+from src.field import EntityType, Field, Cell, TerritoryManager, Territory, COST_WEAK_TOWER, COST_STRONG_TOWER, UNIT_COST
+
+app = FastAPI()
+
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+@app.get("/")
+async def get_index():
+    with open("static/state_editor.html", "r", encoding="utf-8") as f:
+        return HTMLResponse(f.read())
+
+
+class GameState(BaseModel):
+    players: List[str]
+    current_player_index: int
+    field_data: Dict[str, Any]
+    territories_data: List[Dict[str, Any]]
+
+
+class ActionRequest(BaseModel):
+    state: GameState
+    action_type: Optional[str] = None
+    params: Optional[Dict[str, Any]] = None
+    action_id: Optional[int] = None
+
+
+# 1. Генерация нового состояния
+@app.post("/generate_state")
+def generate_state(num_players: int = 2, random: bool = False):
+    """Создает новую игру и возвращает ее состояние"""
+    try:
+        if (not random):
+            with open("static/map_basic_10x10.json", "r") as f:
+                return json.load(f)
+
+        players = [f"player_{i}" for i in range(num_players)]
+
+        # Создаем новую игру
+        gc = GameController(players)
+
+        # Преобразуем состояние в dict
+        field_data = gc.field.to_dict()
+
+        # Собираем данные о территориях
+        territories_data = []
+        for territory in gc.field.territory_manager.territories:
+            territories_data.append(
+                {"owner": territory.owner, "funds": territory.funds, "tiles": list(territory.tiles)}
+            )
+
+        # Создаем объект состояния
+        state = GameState(
+            players=gc.players,
+            current_player_index=gc._current_player_index,
+            field_data=field_data,
+            territories_data=territories_data,
+        )
+
+        return state
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate game state: {str(e)}")
+
+
+# Создание объекта GameController из состояния
+def reconstruct_game(state: GameState) -> GameController:
+    """Восстанавливает объект GameController из переданного состояния"""
+    # Создаем базовый GameController
+    gc = GameController(state.players)
+    gc._current_player_index = state.current_player_index
+
+    # Получаем данные из состояния
+    field_data = state.field_data
+    height = field_data["height"]
+    width = field_data["width"]
+
+    # Создаем поле и полностью его редактируем
+    gc.field = Field(height, width, state.players)
+    gc.field.cells.clear()
+
+    # Координаты баз
+    bases = set()
+
+    # Заполняем клетки
+    for cell_key_str, cell_data in field_data["cells"].items():
+
+        i, j = map(int, cell_key_str.split(","))
+
+        cell = Cell()
+        cell.owner = cell_data["owner"]
+        cell.entity = EntityType(cell_data["entity"])
+        cell.has_moved = cell_data["has_moved"]
+
+        if cell.entity == EntityType.BASE:
+            bases.add((i, j))
+
+        gc.field.cells[(i, j)] = cell
+
+    territories = []
+    for territory_data in state.territories_data:
+        territory_tiles = territory_data["tiles"]
+
+        base_key = None
+        for i, j in territory_tiles:
+            if (i, j) in bases:
+                base_key = (i, j)        
+
+        owner = territory_data["owner"]
+        funds = territory_data["funds"]
+
+        territory = Territory(owner=owner, field=gc.field, base_key=base_key, funds=funds)
+        territory.tiles = set([tuple(i) for i in territory_tiles])
+        territories.append(territory)
+    gc.field.territory_manager = TerritoryManager(gc.field, territories)
+    return gc
+
+
+# 2. Получение доступных действий
+@app.post("/get_actions")
+def get_actions(state: GameState):
+    """Принимает состояние и возвращает все возможные действия"""
+    try:
+        # Восстанавливаем GameController из состояния
+        gc = reconstruct_game(state)
+
+        current_player = gc.players[gc._current_player_index]
+        actions = []
+
+        # Завершение хода - всегда доступно
+        actions.append({"action_id": 0, "action_type": "end_turn", "params": {}, "description": "End turn"})
+
+        action_id = 1
+
+        # Получаем все территории текущего игрока
+        territories = [t for t in gc.field.territory_manager.territories if t.owner == current_player]
+
+        # Перебираем все клетки и собираем возможные действия
+        for territory in territories:
+            for cell_key in territory.tiles:
+                y, x = cell_key
+                cell = gc.field.cells[cell_key]
+
+                # Если клетка пустая, можно строить и создавать юнитов
+                if cell.entity == EntityType.EMPTY:
+                    # Проверяем постройку фермы
+                    try:
+                        if gc.field.has_farm_or_base_neigbour(cell_key):
+                            # Рассчитываем стоимость фермы
+                            num_farms = sum(
+                                1 for pos in territory.tiles if gc.field.cells[pos].entity == EntityType.FARM
+                            )
+                            farm_cost = 12 + 2 * num_farms
+
+                            if territory.funds >= farm_cost:
+                                actions.append(
+                                    {
+                                        "action_id": action_id,
+                                        "action_type": "build_action",
+                                        "params": {"x": x, "y": y, "building": "farm"},
+                                        "description": f"Build farm at ({y},{x})",
+                                    }
+                                )
+                                action_id += 1
+                    except Exception:
+                        pass
+
+                    # Проверяем слабую башню
+                    if territory.funds >= COST_WEAK_TOWER:
+                        actions.append(
+                            {
+                                "action_id": action_id,
+                                "action_type": "build_action",
+                                "params": {"x": x, "y": y, "building": "weakTower"},
+                                "description": f"Build weak tower at ({y},{x})",
+                            }
+                        )
+                        action_id += 1
+
+                    # Проверяем сильную башню
+                    if territory.funds >= COST_STRONG_TOWER:
+                        actions.append(
+                            {
+                                "action_id": action_id,
+                                "action_type": "build_action",
+                                "params": {"x": x, "y": y, "building": "strongTower"},
+                                "description": f"Build strong tower at ({y},{x})",
+                            }
+                        )
+                        action_id += 1
+
+                    # Проверяем создание юнитов
+                    for level in range(1, 5):
+                        if territory.funds >= UNIT_COST[level]:
+                            actions.append(
+                                {
+                                    "action_id": action_id,
+                                    "action_type": "spawn_unit",
+                                    "params": {"x": x, "y": y, "level": level},
+                                    "description": f"Spawn level {level} unit at ({y},{x})",
+                                }
+                            )
+                            action_id += 1
+
+                # Если в клетке юнит, проверяем возможные перемещения
+                elif "unit" in cell.entity.value and not cell.has_moved:
+                    try:
+                        moves = gc.field.get_moves(x, y, current_player)
+                        for move in moves:
+                            to_x = move["x"]
+                            to_y = move["y"]
+                            actions.append(
+                                {
+                                    "action_id": action_id,
+                                    "action_type": "move_unit",
+                                    "params": {"from_x": x, "from_y": y, "to_x": to_x, "to_y": to_y},
+                                    "description": f"Move unit from ({y},{x}) to ({to_y},{to_x})",
+                                }
+                            )
+                            action_id += 1
+                    except Exception:
+                        pass
+
+                # TODO Добавить стакинг юнитов
+
+        return actions
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get actions: {str(e)}")
+
+
+# 3. Применение действия к состоянию
+@app.post("/apply_action")
+def apply_action(request: ActionRequest):
+    """Применяет действие к состоянию и возвращает новое состояние"""
+    try:
+        # Восстанавливаем GameController из состояния
+        gc = reconstruct_game(request.state)
+
+        current_player = gc.players[gc._current_player_index]
+
+        # Если передан action_id, найдем соответствующее действие
+        if request.action_id is not None:
+            # Получаем список доступных действий
+            state_copy = request.state.copy()
+            actions = get_actions(state_copy)
+
+            # Найдем действие с указанным ID
+            action = next((a for a in actions if a["action_id"] == request.action_id), None)
+
+            if not action:
+                raise HTTPException(status_code=400, detail=f"Action with ID {request.action_id} not found")
+
+            action_type = action["action_type"]
+            params = action["params"]
+        else:
+            # Используем переданные напрямую параметры
+            if not request.action_type:
+                raise HTTPException(status_code=400, detail="Missing action_type")
+
+            action_type = request.action_type
+            params = request.params or {}
+
+        # Подготовка сообщения для GameController
+        message = {"type": action_type, "payload": params}
+
+        # Обработка сообщения и получение результата
+        result = gc.process_message(message, current_player)
+
+        if not result:
+            raise HTTPException(status_code=400, detail="Invalid action")
+
+        # Создаем новое состояние
+        field_data = gc.field.to_dict()
+        territories_data = []
+
+        for territory in gc.field.territory_manager.territories:
+            territories_data.append(
+                {"owner": territory.owner, "funds": territory.funds, "tiles": list(territory.tiles)}
+            )
+
+        new_state = GameState(
+            players=gc.players,
+            current_player_index=gc._current_player_index,
+            field_data=field_data,
+            territories_data=territories_data,
+        )
+
+        # Возвращаем новое состояние и результат операции
+        return {
+            "state": new_state,
+            "result": result,
+            "is_game_over": result.get("type") == "game_over",
+            "winner": result.get("winner") if result.get("type") == "game_over" else None,
+        }
+
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail=f"Failed to apply action: {str(e)}")
+
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
