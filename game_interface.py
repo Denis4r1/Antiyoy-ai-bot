@@ -97,7 +97,7 @@ class ActionRequest(BaseModel):
     action_type: Optional[str] = None
     params: Optional[Dict[str, Any]] = None
     action_id: Optional[int] = None
-    description: str
+    description: Optional[str] = None
 
 
 # 1. Генерация нового состояния
@@ -147,8 +147,8 @@ def reconstruct_game(state: GameState) -> GameController:
 
     # Получаем данные из состояния
     field_data = state.field_data
-    height = field_data["height"]
-    width = field_data["width"]
+    height = field_data.height
+    width = field_data.width
 
     # Создаем поле и полностью его редактируем
     gc.field = Field(height, width, state.players)
@@ -158,14 +158,14 @@ def reconstruct_game(state: GameState) -> GameController:
     bases = set()
 
     # Заполняем клетки
-    for cell_key_str, cell_data in field_data["cells"].items():
+    for cell_key_str, cell_data in field_data.cells.items():
 
         i, j = map(int, cell_key_str.split(","))
 
         cell = Cell()
-        cell.owner = cell_data["owner"]
-        cell.entity = EntityType(cell_data["entity"])
-        cell.has_moved = cell_data["has_moved"]
+        cell.owner = cell_data.owner
+        cell.entity = EntityType(cell_data.entity)
+        cell.has_moved = cell_data.has_moved
 
         if cell.entity == EntityType.BASE:
             bases.add((i, j))
@@ -174,15 +174,15 @@ def reconstruct_game(state: GameState) -> GameController:
 
     territories = []
     for territory_data in state.territories_data:
-        territory_tiles = territory_data["tiles"]
+        territory_tiles = territory_data.tiles
 
         base_key = None
         for i, j in territory_tiles:
             if (i, j) in bases:
                 base_key = (i, j)        
 
-        owner = territory_data["owner"]
-        funds = territory_data["funds"]
+        owner = territory_data.owner
+        funds = territory_data.funds
 
         territory = Territory(owner=owner, field=gc.field, base_key=base_key, funds=funds)
         territory.tiles = set([tuple(i) for i in territory_tiles])
