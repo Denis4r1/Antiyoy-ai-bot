@@ -61,16 +61,35 @@ async def log_player_demo():
       });
     </script>
     """
-    
+
     html = html.replace("</body>", injection + "\n</body>")
     return html
+
+
+class CellData(BaseModel):
+    owner: Optional[str]
+    entity: str
+    has_moved: bool
+
+
+class FieldData(BaseModel):
+    height: int
+    width: int
+    cells: Dict[str, CellData]
+    territories: List[Dict[str, List[str]]]
+
+
+class TerritoryData(BaseModel):
+    owner: str
+    funds: int
+    tiles: List[List[int]]
 
 
 class GameState(BaseModel):
     players: List[str]
     current_player_index: int
-    field_data: Dict[str, Any]
-    territories_data: List[Dict[str, Any]]
+    field_data: FieldData
+    territories_data: List[TerritoryData]
 
 
 class ActionRequest(BaseModel):
@@ -78,6 +97,7 @@ class ActionRequest(BaseModel):
     action_type: Optional[str] = None
     params: Optional[Dict[str, Any]] = None
     action_id: Optional[int] = None
+    description: str
 
 
 # 1. Генерация нового состояния
