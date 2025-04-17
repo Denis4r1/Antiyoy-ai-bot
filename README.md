@@ -5,6 +5,47 @@
 - Тураянов Денис
 - Шаяхметов Аскар
 
+# Инструкция по запуску
+### Запуск API и инструментов
+
+В файле `default.env` указан порт API-сервера и число воркеров:
+
+EXTERNAL_PORT=<адрес сервера>\
+GUNICORN_WORKERS=<число воркеров>
+
+Запуск:
+
+```bash
+docker-compose -f docker-compose.yml --env-file default.env up
+```
+
+### Запуск игрового сервера
+
+В файле `default.env` указан порт игрового сервера:
+
+EXTERNAL_PORT_GAMESERVER=<адрес игрового сервера>\
+GUNICORN_WORKERS=<число воркеров>
+
+Запуск:
+
+```bash
+docker compose -f docker-compose.gameserver.yml --env-file default.env up --build
+```
+
+### Демо (иногда работает)
+- [Проигрыватель логов с записью игры mcst](http://gameapi.afsh.space/log_player/demo/)
+- [Редактор gamestate](http://gameapi.afsh.space/state_editor/)
+- [Игровой сервер](http://antiyoygame.afsh.space/)
+
+
+### Описание данных
+
+Логи игры хранятся в лог-файлах. Каждый ход — это одна строка с JSON-объектом `gamestate`.
+
+Описание структуры объекта находится здесь:
+
+http://gameapi.afsh.space/docs
+
 # Правила игры
 
 ## Основы
