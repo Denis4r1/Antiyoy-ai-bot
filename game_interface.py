@@ -6,6 +6,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
+from pathlib import Path
 
 
 from src.gamecontroller import GameController
@@ -34,6 +35,35 @@ async def get_index():
 async def get_index():
     with open("static/log_player.html", "r", encoding="utf-8") as f:
         return HTMLResponse(f.read())
+
+
+@app.get("/log_player/demo", response_class=HTMLResponse)
+async def log_player_demo():
+    html = Path("static/log_player.html").read_text(encoding="utf-8")
+
+    # a little hack to inject a demo json file into the page
+    injection = """
+    <script>
+      window.addEventListener('load', async () => {
+        // 1) fetch the demo log
+        const res  = await fetch('/static/demo_log.jsonl');
+        const text = await res.text();
+
+        // 2) wrap it in a File and DataTransfer
+        const file = new File([text], 'demo_log.jsonl', { type: 'application/json' });
+        const dt   = new DataTransfer();
+        dt.items.add(file);
+
+        // 3) shove it into the <input> and fire 'change'
+        const input = document.getElementById('fileInput');
+        input.files = dt.files;
+        input.dispatchEvent(new Event('change'));
+      });
+    </script>
+    """
+    
+    html = html.replace("</body>", injection + "\n</body>")
+    return html
 
 
 class GameState(BaseModel):
