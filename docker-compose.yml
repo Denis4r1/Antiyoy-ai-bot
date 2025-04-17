@@ -6,6 +6,8 @@ services:
     container_name: my_app
     expose:
       - "8000"
+    env_file:
+      - default.env
     networks:
       - app-network
 
@@ -15,7 +17,7 @@ services:
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
     ports:
-      - "80:80"
+      - "${EXTERNAL_PORT:-80}:80"
     depends_on:
       - app
     networks:
