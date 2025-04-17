@@ -1,0 +1,37 @@
+FROM python:3.9-slim AS builder
+
+RUN apt-get update && apt-get install -y curl gnupg && \
+    curl -fsSL https://deb.nodesource.com/setup_16.x | bash - && \
+    apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN npm install -g typescript
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir --prefer-binary -r requirements.txt
+
+COPY . .
+RUN tsc --noEmit
+
+FROM python:3.9-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir --prefer-binary -r requirements.txt
+
+RUN useradd --create-home appuser
+
+USER appuser
+
+
+COPY --from=builder /app /app
+
+EXPOSE 8000
+
+
+CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "server:app", "--bind", "0.0.0.0:8000"]
