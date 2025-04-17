@@ -13,12 +13,26 @@ from src.field import EntityType, Field, Cell, TerritoryManager, Territory, COST
 
 app = FastAPI()
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-@app.get("/")
+@app.get("/state_editor")
 async def get_index():
     with open("static/state_editor.html", "r", encoding="utf-8") as f:
+        return HTMLResponse(f.read())
+
+
+@app.get("/log_player")
+async def get_index():
+    with open("static/log_player.html", "r", encoding="utf-8") as f:
         return HTMLResponse(f.read())
 
 
@@ -233,6 +247,7 @@ def get_actions(state: GameState):
                         pass
 
                 # TODO Добавить стакинг юнитов
+                # TODO Добавить стакинг башен
 
         return actions
 
@@ -300,7 +315,7 @@ def apply_action(request: ActionRequest):
         # Возвращаем новое состояние и результат операции
         return {
             "state": new_state,
-            "result": result,
+            #"result": result,
             "is_game_over": result.get("type") == "game_over",
             "winner": result.get("winner") if result.get("type") == "game_over" else None,
         }
