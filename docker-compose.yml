@@ -1,9 +1,9 @@
 version: '3.8'
 
 services:
-  app:
+  gameapi_app:
     build: ./
-    container_name: my_app
+    container_name: antiyoy_gameapi__app
     environment:
       GUNICORN_WORKERS: "${GUNICORN_WORKERS}"
     expose:
@@ -13,13 +13,13 @@ services:
 
   nginx:
     image: nginx:alpine
-    container_name: my_nginx
+    container_name: antiyoy_gameapi_nginx
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
     ports:
       - "${EXTERNAL_PORT}:80"
     depends_on:
-      - app
+      - gameapi_app
     networks:
       - app-network
 

@@ -3,7 +3,7 @@ services:
     build:
       context: ./
       dockerfile: Dockerfile.gameserver
-    container_name: gameserver_app
+    container_name: antiyoy_gameserver_app
     expose:
       - "8000"
     networks:
@@ -11,7 +11,7 @@ services:
 
   nginx:
     image: nginx:alpine
-    container_name: my_nginx
+    container_name: antiyoy_gameserver_nginx
     volumes:
       - ./nginx/gameserver.conf:/etc/nginx/conf.d/default.conf
     ports:
