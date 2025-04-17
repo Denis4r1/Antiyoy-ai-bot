@@ -3,7 +3,7 @@ version: '3.8'
 services:
   gameapi_app:
     build: ./
-    container_name: antiyoy_gameapi__app
+    container_name: antiyoy_gameapi_app
     environment:
       GUNICORN_WORKERS: "${GUNICORN_WORKERS}"
     expose:
