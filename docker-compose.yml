@@ -11,7 +11,7 @@ services:
     networks:
       - app-network
 
-  nginx:
+  gameapi_nginx:
     image: nginx:alpine
     container_name: antiyoy_gameapi_nginx
     volumes:

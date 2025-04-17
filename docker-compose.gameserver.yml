@@ -9,7 +9,7 @@ services:
     networks:
       - gameserver_app-network
 
-  nginx:
+  gameserver_nginx:
     image: nginx:alpine
     container_name: antiyoy_gameserver_nginx
     volumes:
