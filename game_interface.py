@@ -67,12 +67,29 @@ async def log_player_demo():
 
 
 class CellData(BaseModel):
+    """
+    Данные одной клетки игрового поля.
+
+    Атрибуты:
+        owner (Optional[str]): Игрок, владеющий клеткой, или None, если клетка пустая.
+        entity (str): Тип сущности в клетке (например, 'EMPTY', 'UNIT_1', 'FARM')
+        has_moved (bool): Если на клетке юнит, то True, если он уже переместился в этом ходу.
+    """
     owner: Optional[str]
     entity: str
     has_moved: bool
 
 
 class FieldData(BaseModel):
+    """
+    Данные игрового поля.
+
+    Атрибуты:
+        height (int): Высота поля (количество строк).
+        width (int): Ширина поля (количество столбцов).
+        cells (Dict[str, CellData]): Словарь клеток с ключами 'y,x' (строка, столбец) и данными клеток.
+        territories (List[Dict[str, List[str]]]): Список территорий в виде [owner: info] где info - какая-то строка
+    """
     height: int
     width: int
     cells: Dict[str, CellData]
@@ -80,19 +97,63 @@ class FieldData(BaseModel):
 
 
 class TerritoryData(BaseModel):
+    """
+    Данные о территории. Территория - связная область клеток, принадлежащая одному игроку.
+
+    Атрибуты:
+        owner (str): Игрок, владеющий территорией.
+        funds (int): Доступные средства территории.
+        tiles (List[List[int]]): Список координат [y, x] клеток территории.
+    """
     owner: str
     funds: int
     tiles: List[List[int]]
 
 
 class GameState(BaseModel):
+    """
+    Текущее состояние игры.
+
+    Атрибуты:
+        players (List[str]): Список имен игроков.
+        current_player_index (int): Индекс игрока, чей ход.
+        field_data (FieldData): Данные игрового поля.
+        territories_data (List[TerritoryData]): Данные о территориях.
+    """
     players: List[str]
     current_player_index: int
     field_data: FieldData
     territories_data: List[TerritoryData]
 
 
+class Action(BaseModel):
+    """
+    Ход, который может быть сделан в игре.
+
+    Атрибуты:
+        action_id (int): Уникальный идентификатор действия.
+        action_type (str): Тип действия. Например "move", "build", "spawn_unit".
+        params (Dict[str, Any]): Параметры, специфичные для типа действия.
+        description (str): Человекочитаемое описание действия.
+    """
+
+    action_id: int
+    action_type: str
+    params: Dict[str, Any]
+    description: str
+
+
 class ActionRequest(BaseModel):
+    """
+    Запрос на применение действия к состоянию игры.
+
+    Атрибуты:
+        state (GameState): Текущее состояние игры.
+        action_type (Optional[str]): Тип действия (если не используется action_id).
+        params (Optional[Dict[str, Any]]): Параметры действия (если не используется action_id).
+        action_id (Optional[int]): ID действия из /get_actions (альтернатива action_type и params).
+        description (Optional[str]): необязательное описание действия.
+    """
     state: GameState
     action_type: Optional[str] = None
     params: Optional[Dict[str, Any]] = None
@@ -100,8 +161,25 @@ class ActionRequest(BaseModel):
     description: Optional[str] = None
 
 
+class ApplyActionResponse(BaseModel):
+    """
+    Ответ на запрос /apply_action.
+
+    Атрибуты:
+        state (GameState): Новое состояние игры после применения действия.
+        is_game_over (bool): Завершена ли игра.
+        winner (Optional[str]): Победитель, если игра завершена.
+    """
+
+    state: GameState
+    is_game_over: bool
+    winner: Optional[str]
+
+
 # 1. Генерация нового состояния
-@app.post("/generate_state")
+@app.post("/generate_state",
+           response_model=GameState,
+           summary="Генерация нового состояния игры")
 def generate_state(num_players: int = 2, random: bool = False):
     """Создает новую игру и возвращает ее состояние"""
     try:
@@ -192,9 +270,18 @@ def reconstruct_game(state: GameState) -> GameController:
 
 
 # 2. Получение доступных действий
-@app.post("/get_actions")
+@app.post("/get_actions",
+           response_model=List[Action],
+           summary="Все возможные действия для текущего состояния")
 def get_actions(state: GameState):
-    """Принимает состояние и возвращает все возможные действия"""
+    """
+    Возвращает список возможных действий для текущего игрока на основе состояния игры.
+    Аргументы:
+        state (GameState): Текущее состояние игры.
+
+    Возвращает:
+        List[Action]: Список возможных действий с action_id, action_type, params и description.
+    """
     try:
         # Восстанавливаем GameController из состояния
         gc = reconstruct_game(state)
@@ -306,9 +393,25 @@ def get_actions(state: GameState):
 
 
 # 3. Применение действия к состоянию
-@app.post("/apply_action")
+@app.post("/apply_action",
+           response_model=ApplyActionResponse,
+           summary="Применение действия к текущему состоянию")
 def apply_action(request: ActionRequest):
-    """Применяет действие к состоянию и возвращает новое состояние"""
+    """
+    Применяет действие к состоянию игры и возвращает обновленное состояние.
+
+    Действие указывается через `action_id` (из /get_actions), либо через `action_type` и `params`.
+    Координаты в `params` указаны как (x, y), где x — столбец, y — строка.
+
+    Аргументы:
+        request (ActionRequest): Запрос с текущим состоянием и деталями действия.
+
+    Возвращает:
+        ApplyActionResponse: Новое состояние игры, флаг завершения и победитель, если игра окончена.
+
+    Вызывает:
+        HTTPException: 400, если действие недопустимо;
+    """
     try:
         # Восстанавливаем GameController из состояния
         gc = reconstruct_game(request.state)
