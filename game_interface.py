@@ -139,8 +139,8 @@ class Action(BaseModel):
 
     action_id: int
     action_type: str
-    params: Dict[str, Any]
-    description: str
+    params: Optional[Dict[str, Any]]
+    description: Optional[str]
 
 
 class ActionRequest(BaseModel):
