@@ -411,22 +411,33 @@ function deselectCell() {
 // Вычислить координаты шестиугольной ячейки по координатам на экране
 function getHexCoordinates(e: MouseEvent): CellCoord | null {
     if (!gameState) return null;
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    const j = Math.floor(mouseX / (1.5 * radius));
-    let yCoord = mouseY;
-    if (j % 2 === 1) {
-        yCoord -= (Math.sqrt(3) * radius) / 2;
-    }
-    const i = Math.floor(yCoord / (Math.sqrt(3) * radius));
 
-    // проверка границ
+    // 1) Получаем фактический прямоугольник Canvas на экране
+    const rect = canvas.getBoundingClientRect();
+
+    // 2) Считаем масштаб (если Canvas внутри имеет ширину 1000, 
+    // а показывается на экране 500px, scaleX = 2 и т.д.)
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+
+    // 3) Переводим координаты клика из «CSS-пикселей» в «Canvas-пиксели»
+    let mouseX = (e.clientX - rect.left) * scaleX;
+    let mouseY = (e.clientY - rect.top) * scaleY;
+
+    // Далее логика та же:
+    const j = Math.floor(mouseX / (1.5 * radius));
+
+    if (j % 2 === 1) {
+        mouseY -= (Math.sqrt(3) * radius) / 2;
+    }
+    const i = Math.floor(mouseY / (Math.sqrt(3) * radius));
+
     if (i >= 0 && i < gameState.rows && j >= 0 && j < gameState.cols) {
         return { x: j, y: i };
     }
     return null;
 }
+
 
 // Подсветка клетки под курсором
 canvas.addEventListener('mousemove', (e) => {

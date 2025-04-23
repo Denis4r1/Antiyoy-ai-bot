@@ -1,0 +1,26 @@
+services:
+  gameserver_app:
+    build:
+      context: ./
+      dockerfile: Dockerfile.gameserver
+    container_name: antiyoy_gameserver_app
+    expose:
+      - "8000"
+    networks:
+      - gameserver_app-network
+
+  gameserver_nginx:
+    image: nginx:alpine
+    container_name: antiyoy_gameserver_nginx
+    volumes:
+      - ./nginx/gameserver.conf:/etc/nginx/conf.d/default.conf
+    ports:
+      - "${EXTERNAL_PORT_GAMESERVER}:81"
+    depends_on:
+      - gameserver_app
+    networks:
+      - gameserver_app-network
+
+networks:
+  gameserver_app-network:
+    driver: bridge

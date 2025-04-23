@@ -510,7 +510,7 @@ class Field:
         """
         # Формируем информацию о клетках
         cells_dict = {
-            f"{i},{j}": {"owner": cell.owner, "entity": cell.entity.value} 
+            f"{i},{j}": {"owner": cell.owner, "entity": cell.entity.value, "has_moved": cell.has_moved} 
             for (i, j), cell in self.cells.items()
         }
 

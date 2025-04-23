@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Game State Viewer</title>
+    <style>
+        :root {
+            --color-bg: #f5f7fa;
+            --color-primary: #007bff;
+            --color-primary-hover: #0056b3;
+            --color-secondary: #6c757d;
+            --color-text: #333;
+            --border-radius: 6px;
+        }
+
+        body {
+            margin: 0;
+            padding: 20px;
+            background: var(--color-bg);
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            box-sizing: border-box;
+            color: var(--color-text);
+        }
+
+        .controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .controls button {
+            width: 36px;
+            height: 36px;
+            border: none;
+            border-radius: 50%;
+            background: var(--color-primary);
+            color: #fff;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background .2s;
+        }
+
+        .controls button:hover {
+            background: var(--color-primary-hover);
+        }
+
+        .controls input[type=range] {
+            flex: 1;
+        }
+
+        .main {
+            flex: 1;
+            display: flex;
+            gap: 20px;
+        }
+
+        .left,
+        .right {
+            background: #fff;
+            border-radius: var(--border-radius);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .left {
+            flex: 2;
+        }
+
+        .right {
+            flex: 1;
+        }
+
+        #canvasWrap {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            border: 2px dashed #ccc;
+            border-radius: var(--border-radius);
+            flex: 1;
+        }
+
+        #gameCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            background: #fafafa;
+        }
+
+        #canvasWrap.file-loaded {
+            border: none;
+        }
+
+        .drop-zone {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.9);
+            color: #6c757d;
+            font-size: 18px;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .drop-zone.hidden {
+            display: none;
+        }
+
+        textarea {
+            flex: 1;
+            width: 100%;
+            resize: none;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 8px;
+            font-size: 14px;
+            background: #f8f9fa;
+        }
+
+        #frameCounter {
+            width: 12ch;
+            text-align: center;
+            font-family: monospace;
+            font-size: 14px;
+            color: var(--color-text);
+            user-select: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="controls">
+        <input type="file" id="fileInput" accept=".json,.jsonl,.txt">
+        <button id="prevBtn">⏮</button>
+        <button id="playBtn">▶</button>
+        <button id="nextBtn">⏭</button>
+        <label>FPS:
+            <input type="number" id="speed" min="1" value="30" style="width:60px">
+        </label>
+        <input type="range" id="frameSlider" min="0" max="0" value="0">
+        <div id="frameCounter">0/0</div>
+
+    </div>
+    <div class="main">
+        <div class="left">
+            <div id="canvasWrap">
+                <canvas id="gameCanvas"></canvas>
+                <div class="drop-zone" id="dropZone">
+                    Перетащите сюда файл<br>(JSON/JSONL)
+                </div>
+            </div>
+        </div>
+        <div class="right">
+            <div id="stats" style="margin-bottom: 12px; padding: 8px; background: #f0f0f0; border-radius: 4px;">
+                <!-- сюда JS будет вставлять статистику -->
+            </div>
+            <h4>JSON текущего кадра</h4>
+            <textarea id="jsonEditor" readonly></textarea>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            let dragCounter = 0;
+            const RADIUS = 18;
+            const ICON_SIZE = 24;
+            const COLOR_POOL = ["#FFB3BA", "#FFDFBA", "#FFFFBA", "#BAFFC9", "#BAE1FF", "#D3BAFF", "#FFBAF0"];
+            const COLORS = { null: "#eee" };
+            const icons = {
+                unit1: new Image(), unit2: new Image(), unit3: new Image(),
+                unit4: new Image(), base: new Image(), farm: new Image(),
+                weakTower: new Image(), strongTower: new Image()
+            };
+            for (const k in icons) icons[k].src = `/static/${k}.png`;
+
+            const fileInput = document.getElementById('fileInput');
+            const prevBtn = document.getElementById('prevBtn');
+            const playBtn = document.getElementById('playBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            const speedInput = document.getElementById('speed');
+            const slider = document.getElementById('frameSlider');
+            const dropZone = document.getElementById('dropZone');
+            const canvasWrap = document.getElementById('canvasWrap');
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            const statsDiv = document.getElementById('stats');
+            const jsonEditor = document.getElementById('jsonEditor');
+
+            let states = [], idx = 0, timer = null;
+
+            function init() {
+                fileInput.addEventListener('change', handleFile);
+                canvasWrap.addEventListener('dragenter', onDragEnter);
+                canvasWrap.addEventListener('dragleave', onDragLeave);
+                canvasWrap.addEventListener('dragover', onDragOver);
+                canvasWrap.addEventListener('drop', onDrop);
+                prevBtn.addEventListener('click', () => gotoFrame(idx - 1));
+                nextBtn.addEventListener('click', () => gotoFrame(idx + 1));
+                playBtn.addEventListener('click', togglePlay);
+                speedInput.addEventListener('change', restartPlayIfNeeded);
+                slider.addEventListener('input', () => gotoFrame(+slider.value));
+                updateUI();
+            }
+
+            function updateStats(st) {
+                const statsDiv = document.getElementById('stats');
+
+                let html = '<strong>Территории:</strong>';
+                html += '<ul style="margin:4px 0 0 16px; padding-left:16px;">';
+
+                st.territories_data.forEach(td => {
+                    const owner = td.owner;
+                    const tilesCount = td.tiles.length;
+                    const funds = td.funds;
+                    const color = COLORS[owner] || '#ccc'; // цвет, использованный для owner
+
+                    html += `<li>
+                    <span style="display:inline-block; width:12px; height:12px; background:${color}; margin-right:6px; vertical-align:middle; border:1px solid #999;"></span>
+                    <em>${owner}</em>: ${tilesCount} tiles, ${funds} funds
+                 </li>`;
+                });
+
+                html += '</ul>';
+                statsDiv.innerHTML = html;
+            }
+
+            function onDragEnter(e) {
+                e.preventDefault();
+                if (dragCounter === 0) {
+                    dropZone.classList.remove('hidden');
+                }
+                dragCounter++;
+            }
+
+            function onDragLeave(e) {
+                e.preventDefault();
+                dragCounter--;
+                if (dragCounter === 0) {
+                    dropZone.classList.add('hidden');
+                }
+            }
+
+            function onDragOver(e) {
+                e.preventDefault();
+            }
+
+            function onDrop(e) {
+                e.preventDefault();
+                dragCounter = 0;
+                dropZone.classList.add('hidden');
+                handleFile(e);
+            }
+
+            function updateFrameCounter() {
+                const total = states.length;
+                // +1 чтобы считать кадры с 1, а не с 0
+                const current = states.length > 0 ? idx + 1 : 0;
+                document.getElementById('frameCounter').textContent = `${current}/${total}`;
+            }
+
+
+            async function handleFile(e) {
+                const file = e.dataTransfer?.files[0] || fileInput.files[0];
+                if (!file) return;
+                try {
+                    const text = await file.text();
+                    states = text
+                        .split('\n')
+                        .filter(l => l.trim())
+                        .map(l => JSON.parse(l));
+                    if (!states.length) throw new Error("Пустой файл");
+                    idx = 0;
+                    slider.max = states.length - 1;
+                    stopPlay();
+                } catch (err) {
+                    alert("Ошибка чтения:\n" + err.message);
+                    states = [];
+                }
+                updateUI();
+            }
+
+            function updateUI() {
+                const has = states.length > 0;
+                dropZone.classList.toggle('hidden', has);
+                canvas.style.visibility = has ? 'visible' : 'hidden';
+                canvasWrap.classList.toggle('file-loaded', has);
+                slider.disabled = !has;
+                prevBtn.disabled = !has;
+                nextBtn.disabled = !has;
+                speedInput.disabled = !has;
+
+                updateFrameCounter();
+
+                if (has) {
+                    slider.value = idx;
+                }
+
+                drawMap();
+            }
+
+
+            function gotoFrame(i) {
+                if (!states.length) return;
+                idx = Math.max(0, Math.min(states.length - 1, i));
+                if (idx === states.length - 1) stopPlay();
+                updateUI();
+            }
+
+            function togglePlay() { timer ? stopPlay() : startPlay(); }
+
+            function startPlay() {
+                const fps = Math.max(1, +speedInput.value);
+                timer = setInterval(() => gotoFrame(idx + 1), 1000 / fps);
+                playBtn.textContent = '⏸';
+            }
+
+            function stopPlay() {
+                clearInterval(timer);
+                timer = null;
+                playBtn.textContent = '▶';
+            }
+
+            function restartPlayIfNeeded() {
+                if (timer) { stopPlay(); startPlay(); }
+            }
+
+            function drawMap() {
+                if (!states.length) {
+                    jsonEditor.value = '';
+                    return;
+                }
+                const st = states[idx];
+                const W = st.field_data.width;
+                const H = st.field_data.height;
+                const gridW = W * 1.5 * RADIUS + RADIUS;
+                const gridH = H * Math.sqrt(3) * RADIUS + RADIUS;
+
+                const scale = canvasWrap.clientHeight / gridH;
+                const scaledWidth = gridW * scale;
+                const wrapWidth = canvasWrap.clientWidth;
+                const offsetX = (wrapWidth - scaledWidth) / 2;
+
+                canvas.width = scaledWidth;
+                canvas.height = gridH * scale;
+                canvas.style.width = scaledWidth + 'px';
+                canvas.style.height = canvas.height + 'px';
+                canvas.style.left = offsetX + 'px';
+
+                // Заполняем фон цветом незанятых плиток
+                ctx.fillStyle = "#fff";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.setTransform(scale, 0, 0, scale, 0, 0);
+
+                st.players.forEach((p, i) => {
+                    if (!COLORS[p]) COLORS[p] = COLOR_POOL[i % COLOR_POOL.length];
+                });
+
+                for (const key in st.field_data.cells) {
+                    const cell = st.field_data.cells[key];
+                    const [r, c] = key.split(',').map(Number);
+                    let x = c * 1.5 * RADIUS + RADIUS;
+                    let y = r * Math.sqrt(3) * RADIUS + RADIUS;
+                    if (c % 2) y += (Math.sqrt(3) * RADIUS) / 2;
+
+                    drawHex(x, y, COLORS[cell.owner ?? null]);
+
+                    if (cell.entity && cell.entity !== 'empty') {
+                        const img = icons[cell.entity];
+                        if (img.complete) {
+                            ctx.drawImage(img, x - ICON_SIZE / 2, y - ICON_SIZE / 2, ICON_SIZE, ICON_SIZE);
+                        } else {
+                            ctx.fillStyle = '#000';
+                            ctx.font = '12px sans-serif';
+                            ctx.fillText(cell.entity, x - 10, y + 4);
+                        }
+                    }
+                }
+
+                jsonEditor.value = JSON.stringify(st, null, 2);
+                updateStats(st);
+            }
+
+            function drawHex(cx, cy, fill) {
+                ctx.beginPath();
+                for (let i = 0; i < 6; i++) {
+                    const ang = Math.PI / 3 * i;
+                    const px = cx + RADIUS * Math.cos(ang);
+                    const py = cy + RADIUS * Math.sin(ang);
+                    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+                }
+                ctx.closePath();
+                ctx.fillStyle = fill;
+                ctx.fill();
+                ctx.strokeStyle = '#999';
+                ctx.stroke();
+            }
+
+            init();
+        })();
+    </script>
+</body>
+
+</html>
