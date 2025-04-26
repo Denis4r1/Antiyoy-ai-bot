@@ -5,8 +5,11 @@ from pydantic import BaseModel
 from typing import List, Dict, Any, Optional, Tuple
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from pathlib import Path
+import os
+import functools
+import json
 
 
 from src.gamecontroller import GameController
@@ -176,6 +179,161 @@ class ApplyActionResponse(BaseModel):
     winner: Optional[str]
 
 
+# --------------------------------------------------
+# 1) /get_actions — внутренняя кеширующая функция
+
+
+@functools.lru_cache(maxsize=10000)
+def _cached_get_actions(state_json: str) -> List[Action]:
+    # pydantic v2: модель из JSON
+    state = GameState.model_validate_json(state_json)
+
+    gc = reconstruct_game(state)
+    current_player = gc.players[gc._current_player_index]
+
+    actions: list[dict] = []
+    # всегда доступное
+    actions.append({"action_id": 0, "action_type": "end_turn", "params": {}, "description": "End turn"})
+    action_id = 1
+
+    territories = [t for t in gc.field.territory_manager.territories if t.owner == current_player]
+    for territory in territories:
+        for y, x in territory.tiles:
+            cell = gc.field.cells[(y, x)]
+            # пустая клетка — можно строить и спавн
+            if cell.entity == EntityType.EMPTY:
+                # build farm
+                try:
+                    if gc.field.has_farm_or_base_neigbour((y, x)):
+                        num_farms = sum(1 for p in territory.tiles if gc.field.cells[p].entity == EntityType.FARM)
+                        cost = 12 + 2 * num_farms
+                        if territory.funds >= cost:
+                            actions.append(
+                                {
+                                    "action_id": action_id,
+                                    "action_type": "build_action",
+                                    "params": {"x": x, "y": y, "building": "farm"},
+                                    "description": f"Build farm at ({y},{x})",
+                                }
+                            )
+                            action_id += 1
+                except:
+                    pass
+
+                # weak tower
+                if territory.funds >= COST_WEAK_TOWER:
+                    actions.append(
+                        {
+                            "action_id": action_id,
+                            "action_type": "build_action",
+                            "params": {"x": x, "y": y, "building": "weakTower"},
+                            "description": f"Weak tower at ({y},{x})",
+                        }
+                    )
+                    action_id += 1
+
+                # strong tower
+                if territory.funds >= COST_STRONG_TOWER:
+                    actions.append(
+                        {
+                            "action_id": action_id,
+                            "action_type": "build_action",
+                            "params": {"x": x, "y": y, "building": "strongTower"},
+                            "description": f"Strong tower at ({y},{x})",
+                        }
+                    )
+                    action_id += 1
+
+                # spawn units
+                for lvl in range(1, 5):
+                    if territory.funds >= UNIT_COST[lvl]:
+                        actions.append(
+                            {
+                                "action_id": action_id,
+                                "action_type": "spawn_unit",
+                                "params": {"x": x, "y": y, "level": lvl},
+                                "description": f"Spawn lvl {lvl} unit at ({y},{x})",
+                            }
+                        )
+                        action_id += 1
+
+            # юнит — можно двигать
+            elif "unit" in cell.entity.value and not cell.has_moved:
+                try:
+                    moves = gc.field.get_moves(x, y, current_player)
+                    for m in moves:
+                        actions.append(
+                            {
+                                "action_id": action_id,
+                                "action_type": "move_unit",
+                                "params": {"from_x": x, "from_y": y, "to_x": m["x"], "to_y": m["y"]},
+                                "description": f"Move from ({y},{x}) to ({m['y']},{m['x']})",
+                            }
+                        )
+                        action_id += 1
+                except:
+                    pass
+
+    # приводим к List[Action]
+    return [Action(**a) for a in actions]
+
+
+# --------------------------------------------------
+# 2) /apply_action — внутренняя кеширующая функция
+
+
+@functools.lru_cache(maxsize=10000)
+def _cached_apply_action(
+    state_json: str, action_id: Optional[int], action_type: Optional[str], params_json: str, description: Optional[str]
+) -> ApplyActionResponse:
+
+    # Собираем запрос в словарь и конструируем Pydantic-модель
+    req_dict = {
+        "state": json.loads(state_json),
+        "action_id": action_id,
+        "action_type": action_type,
+        "params": json.loads(params_json) if params_json else None,
+        "description": description,
+    }
+    req = ActionRequest(**req_dict)
+
+    gc = reconstruct_game(req.state)
+    current_player = gc.players[gc._current_player_index]
+
+    # Если передали action_id — находим реальный action_type и params
+    if req.action_id is not None:
+        act_list = _cached_get_actions(req.state.json())
+        act = next((x for x in act_list if x.action_id == req.action_id), None)
+        if act is None:
+            raise HTTPException(status_code=400, detail=f"Action {req.action_id} not found")
+        action_type, params = act.action_type, act.params or {}
+    else:
+        if not req.action_type:
+            raise HTTPException(status_code=400, detail="Missing action_type")
+        action_type, params = req.action_type, req.params or {}
+
+    # Применяем ход
+    result = gc.process_message({"type": action_type, "payload": params}, current_player)
+    if not result:
+        raise HTTPException(status_code=400, detail="Invalid action")
+
+    # Собираем новый GameState
+    fd = gc.field.to_dict()
+    td = [{"owner": t.owner, "funds": t.funds, "tiles": list(t.tiles)} for t in gc.field.territory_manager.territories]
+    new_state = GameState(
+        players=gc.players,
+        current_player_index=gc._current_player_index,
+        field_data=fd,
+        territories_data=td,
+    )
+
+    return ApplyActionResponse(
+        state=new_state,
+        is_game_over=(result.get("type") == "game_over"),
+        winner=(result.get("winner") if result.get("type") == "game_over" else None),
+    )
+
+
 # 1. Генерация нового состояния
 @app.post("/generate_state",
            response_model=GameState,
@@ -269,214 +427,50 @@ def reconstruct_game(state: GameState) -> GameController:
     return gc
 
 
-# 2. Получение доступных действий
-@app.post("/get_actions",
-           response_model=List[Action],
-           summary="Все возможные действия для текущего состояния")
-def get_actions(state: GameState):
+@app.post("/get_actions", response_model=List[Action])
+def get_actions_endpoint(state: GameState):
+    state_json = state.model_dump_json()
+    return _cached_get_actions(state_json)
+
+
+@app.post("/apply_action", response_model=ApplyActionResponse)
+def apply_action_endpoint(request: ActionRequest):
+    state_json = request.state.model_dump_json()
+    params_json = json.dumps(request.params or {}, sort_keys=True)
+    return _cached_apply_action(state_json, request.action_id, request.action_type, params_json, request.description)
+
+
+LOG_DIR = os.path.join(os.path.dirname(__file__), "logs")
+
+
+@app.get("/logs")
+async def list_logs():
     """
-    Возвращает список возможных действий для текущего игрока на основе состояния игры.
-    Аргументы:
-        state (GameState): Текущее состояние игры.
-
-    Возвращает:
-        List[Action]: Список возможных действий с action_id, action_type, params и description.
-    """
-    try:
-        # Восстанавливаем GameController из состояния
-        gc = reconstruct_game(state)
-
-        current_player = gc.players[gc._current_player_index]
-        actions = []
-
-        # Завершение хода - всегда доступно
-        actions.append({"action_id": 0, "action_type": "end_turn", "params": {}, "description": "End turn"})
-
-        action_id = 1
-
-        # Получаем все территории текущего игрока
-        territories = [t for t in gc.field.territory_manager.territories if t.owner == current_player]
-
-        # Перебираем все клетки и собираем возможные действия
-        for territory in territories:
-            for cell_key in territory.tiles:
-                y, x = cell_key
-                cell = gc.field.cells[cell_key]
-
-                # Если клетка пустая, можно строить и создавать юнитов
-                if cell.entity == EntityType.EMPTY:
-                    # Проверяем постройку фермы
-                    try:
-                        if gc.field.has_farm_or_base_neigbour(cell_key):
-                            # Рассчитываем стоимость фермы
-                            num_farms = sum(
-                                1 for pos in territory.tiles if gc.field.cells[pos].entity == EntityType.FARM
-                            )
-                            farm_cost = 12 + 2 * num_farms
-
-                            if territory.funds >= farm_cost:
-                                actions.append(
-                                    {
-                                        "action_id": action_id,
-                                        "action_type": "build_action",
-                                        "params": {"x": x, "y": y, "building": "farm"},
-                                        "description": f"Build farm at ({y},{x})",
-                                    }
-                                )
-                                action_id += 1
-                    except Exception:
-                        pass
-
-                    # Проверяем слабую башню
-                    if territory.funds >= COST_WEAK_TOWER:
-                        actions.append(
-                            {
-                                "action_id": action_id,
-                                "action_type": "build_action",
-                                "params": {"x": x, "y": y, "building": "weakTower"},
-                                "description": f"Build weak tower at ({y},{x})",
-                            }
-                        )
-                        action_id += 1
-
-                    # Проверяем сильную башню
-                    if territory.funds >= COST_STRONG_TOWER:
-                        actions.append(
-                            {
-                                "action_id": action_id,
-                                "action_type": "build_action",
-                                "params": {"x": x, "y": y, "building": "strongTower"},
-                                "description": f"Build strong tower at ({y},{x})",
-                            }
-                        )
-                        action_id += 1
-
-                    # Проверяем создание юнитов
-                    for level in range(1, 5):
-                        if territory.funds >= UNIT_COST[level]:
-                            actions.append(
-                                {
-                                    "action_id": action_id,
-                                    "action_type": "spawn_unit",
-                                    "params": {"x": x, "y": y, "level": level},
-                                    "description": f"Spawn level {level} unit at ({y},{x})",
-                                }
-                            )
-                            action_id += 1
-
-                # Если в клетке юнит, проверяем возможные перемещения
-                elif "unit" in cell.entity.value and not cell.has_moved:
-                    try:
-                        moves = gc.field.get_moves(x, y, current_player)
-                        for move in moves:
-                            to_x = move["x"]
-                            to_y = move["y"]
-                            actions.append(
-                                {
-                                    "action_id": action_id,
-                                    "action_type": "move_unit",
-                                    "params": {"from_x": x, "from_y": y, "to_x": to_x, "to_y": to_y},
-                                    "description": f"Move unit from ({y},{x}) to ({to_y},{to_x})",
-                                }
-                            )
-                            action_id += 1
-                    except Exception:
-                        pass
-
-                # TODO Добавить стакинг юнитов
-                # TODO Добавить стакинг башен
-
-        return actions
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get actions: {str(e)}")
-
-
-# 3. Применение действия к состоянию
-@app.post("/apply_action",
-           response_model=ApplyActionResponse,
-           summary="Применение действия к текущему состоянию")
-def apply_action(request: ActionRequest):
-    """
-    Применяет действие к состоянию игры и возвращает обновленное состояние.
-
-    Действие указывается через `action_id` (из /get_actions), либо через `action_type` и `params`.
-    Координаты в `params` указаны как (x, y), где x — столбец, y — строка.
-
-    Аргументы:
-        request (ActionRequest): Запрос с текущим состоянием и деталями действия.
-
-    Возвращает:
-        ApplyActionResponse: Новое состояние игры, флаг завершения и победитель, если игра окончена.
-
-    Вызывает:
-        HTTPException: 400, если действие недопустимо;
+    Возвращает список всех JSON-файлов в папке logs.
     """
     try:
-        # Восстанавливаем GameController из состояния
-        gc = reconstruct_game(request.state)
+        files = [
+            fname
+            for fname in os.listdir(LOG_DIR)
+            if os.path.isfile(os.path.join(LOG_DIR, fname)) and fname.endswith(".json")
+        ]
+        files.sort()
+    except FileNotFoundError:
+        raise HTTPException(status_code=500, detail="Directory logs/ not found")
+    return {"logs": files}
 
-        current_player = gc.players[gc._current_player_index]
 
-        # Если передан action_id, найдем соответствующее действие
-        if request.action_id is not None:
-            # Получаем список доступных действий
-            state_copy = request.state.copy()
-            actions = get_actions(state_copy)
-
-            # Найдем действие с указанным ID
-            action = next((a for a in actions if a["action_id"] == request.action_id), None)
-
-            if not action:
-                raise HTTPException(status_code=400, detail=f"Action with ID {request.action_id} not found")
-
-            action_type = action["action_type"]
-            params = action["params"]
-        else:
-            # Используем переданные напрямую параметры
-            if not request.action_type:
-                raise HTTPException(status_code=400, detail="Missing action_type")
-
-            action_type = request.action_type
-            params = request.params or {}
-
-        # Подготовка сообщения для GameController
-        message = {"type": action_type, "payload": params}
-
-        # Обработка сообщения и получение результата
-        result = gc.process_message(message, current_player)
-
-        if not result:
-            raise HTTPException(status_code=400, detail="Invalid action")
-
-        # Создаем новое состояние
-        field_data = gc.field.to_dict()
-        territories_data = []
-
-        for territory in gc.field.territory_manager.territories:
-            territories_data.append(
-                {"owner": territory.owner, "funds": territory.funds, "tiles": list(territory.tiles)}
-            )
-
-        new_state = GameState(
-            players=gc.players,
-            current_player_index=gc._current_player_index,
-            field_data=field_data,
-            territories_data=territories_data,
-        )
-
-        # Возвращаем новое состояние и результат операции
-        return {
-            "state": new_state,
-            #"result": result,
-            "is_game_over": result.get("type") == "game_over",
-            "winner": result.get("winner") if result.get("type") == "game_over" else None,
-        }
-
-    except Exception as e:
-        if isinstance(e, HTTPException):
-            raise e
-        raise HTTPException(status_code=500, detail=f"Failed to apply action: {str(e)}")
+@app.get("/logs/{filename}")
+async def get_log(filename: str):
+    """
+    Отдаёт содержимое конкретного лога по имени файла.
+    """
+    if ".." in filename or filename.startswith("/"):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    file_path = os.path.join(LOG_DIR, filename)
+    if not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail="Log not found")
+    return FileResponse(path=file_path, media_type="application/json", filename=filename)
 
 
 if __name__ == "__main__":
