@@ -32,16 +32,23 @@
             gap: 8px;
             align-items: center;
             margin-bottom: 8px;
+            flex-wrap: wrap;
+        }
+
+        .controls button,
+        .controls select,
+        .controls input[type=checkbox],
+        .controls label {
+            font-size: 14px;
         }
 
         .controls button {
-            width: 36px;
+            padding: 0 12px;
             height: 36px;
             border: none;
-            border-radius: 50%;
+            border-radius: 4px;
             background: var(--color-primary);
             color: #fff;
-            font-size: 16px;
             cursor: pointer;
             transition: background .2s;
         }
@@ -100,6 +107,12 @@
             border: none;
         }
 
+        .gif-btn {
+            width: auto;
+            padding: 0 12px;
+            border-radius: 18px;
+        }
+
         .drop-zone {
             position: absolute;
             top: 0;
@@ -144,7 +157,17 @@
 
 <body>
     <div class="controls">
+        <label>API base: <input type="text" id="apiBase" value="" placeholder="e.g., http://logserver:8080"></label>
+        <select id="logSelect">
+            <option value="">-- выбрать лог --</option>
+        </select>
+        <button id="trackBtn">Отслеживать</button>
+        <label><input type="checkbox" id="autoRefresh"> Авто‑обновление</label>
+        <span id="trackStatus" style="font-style:italic; color: var(--color-secondary);"></span>
+        <!-- остальной код контролов -->
         <input type="file" id="fileInput" accept=".json,.jsonl,.txt">
+        <button id="createMp4Btn" class="gif-btn">Создать MP4</button>
+        <span id="gifProgress"></span>
         <button id="prevBtn">⏮</button>
         <button id="playBtn">▶</button>
         <button id="nextBtn">⏭</button>
@@ -153,7 +176,6 @@
         </label>
         <input type="range" id="frameSlider" min="0" max="0" value="0">
         <div id="frameCounter">0/0</div>
-
     </div>
     <div class="main">
         <div class="left">
@@ -185,9 +207,9 @@
                 unit4: new Image(), base: new Image(), farm: new Image(),
                 weakTower: new Image(), strongTower: new Image()
             };
-            for (const k in icons) icons[k].src = `/static/${k}.png`;
 
             const fileInput = document.getElementById('fileInput');
+
             const prevBtn = document.getElementById('prevBtn');
             const playBtn = document.getElementById('playBtn');
             const nextBtn = document.getElementById('nextBtn');
@@ -199,10 +221,44 @@
             const ctx = canvas.getContext('2d');
             const statsDiv = document.getElementById('stats');
             const jsonEditor = document.getElementById('jsonEditor');
+            const createMp4Btn = document.getElementById('createMp4Btn');
+            const mp4Progress = document.getElementById('gifProgress');
+
+            // новые элементы
+            const logSelect = document.getElementById('logSelect');
+            const trackBtn = document.getElementById('trackBtn');
+            const autoRefresh = document.getElementById('autoRefresh');
+            const trackStatus = document.getElementById('trackStatus');
 
             let states = [], idx = 0, timer = null;
+            let trackInterval = null, currentLog = "";
+
+            function loadImages() {
+                const promises = [];
+                for (const k in icons) {
+                    const img = icons[k];
+                    img.crossOrigin = "anonymous";
+                    promises.push(new Promise((resolve, reject) => {
+                        img.onload = resolve;
+                        img.onerror = () => reject(new Error(`Не удалось загрузить /static/${k}.png`));
+                        img.src = `/static/${k}.png`;
+                    }));
+                }
+                return Promise.all(promises);
+            }
 
             function init() {
+                loadImages()
+                    .then(() => {
+                        setupEventListeners();
+                        updateUI();
+                        fetchLogList();
+                    })
+                    .catch(console.error);
+            }
+
+            function setupEventListeners() {
+                document.getElementById('apiBase').addEventListener('change', fetchLogList);
                 fileInput.addEventListener('change', handleFile);
                 canvasWrap.addEventListener('dragenter', onDragEnter);
                 canvasWrap.addEventListener('dragleave', onDragLeave);
@@ -213,85 +269,102 @@
                 playBtn.addEventListener('click', togglePlay);
                 speedInput.addEventListener('change', restartPlayIfNeeded);
                 slider.addEventListener('input', () => gotoFrame(+slider.value));
-                updateUI();
-            }
-
-            function updateStats(st) {
-                const statsDiv = document.getElementById('stats');
-
-                let html = '<strong>Территории:</strong>';
-                html += '<ul style="margin:4px 0 0 16px; padding-left:16px;">';
-
-                st.territories_data.forEach(td => {
-                    const owner = td.owner;
-                    const tilesCount = td.tiles.length;
-                    const funds = td.funds;
-                    const color = COLORS[owner] || '#ccc'; // цвет, использованный для owner
-
-                    html += `<li>
-                    <span style="display:inline-block; width:12px; height:12px; background:${color}; margin-right:6px; vertical-align:middle; border:1px solid #999;"></span>
-                    <em>${owner}</em>: ${tilesCount} tiles, ${funds} funds
-                 </li>`;
+                createMp4Btn.addEventListener('click', () => {
+                    createMp4Btn.disabled = true;
+                    mp4Progress.textContent = 'Запись видео...';
+                    recordMp4();
                 });
-
-                html += '</ul>';
-                statsDiv.innerHTML = html;
+                trackBtn.addEventListener('click', startTracking);
+                autoRefresh.addEventListener('change', toggleAutoRefresh);
             }
 
-            function onDragEnter(e) {
-                e.preventDefault();
-                if (dragCounter === 0) {
-                    dropZone.classList.remove('hidden');
+            // ----------------- логика трекинга -----------------
+
+            async function fetchLogList() {
+                console.log("Fetching log list"); // Для диагностики
+                const apiBase = document.getElementById('apiBase').value.trim();
+                const url = apiBase ? apiBase + '/logs' : '/logs';
+                try {
+                    const resp = await fetch(url);
+                    const data = await resp.json();
+                    logSelect.innerHTML = `<option value="">-- выбрать лог --</option>` +
+                        data.logs.map(f => `<option value="${f}">${f}</option>`).join('');
+                } catch (e) {
+                    console.error("Не удалось получить список логов:", e);
                 }
-                dragCounter++;
             }
-
-            function onDragLeave(e) {
-                e.preventDefault();
-                dragCounter--;
-                if (dragCounter === 0) {
-                    dropZone.classList.add('hidden');
+   async function loadLogFile() {
+                if (!currentLog) return;
+                const apiBase = document.getElementById('apiBase').value.trim();
+                const url = apiBase ? apiBase + '/logs/' + currentLog + '?_=' + Date.now() : '/logs/' + currentLog + '?_=' + Date.now();
+                try {
+                    const resp = await fetch(url);
+                    if (!resp.ok) throw new Error(resp.statusText);
+                    const text = await resp.text();
+                    const lines = text.split('\n').filter(l => l.trim());
+                    const newStates = lines.map(l => JSON.parse(l));
+                    states = newStates;
+                    slider.max = states.length - 1;
+                    if (autoRefresh.checked) {
+                        idx = states.length - 1; // Всегда перематываем на последний кадр при автообновлении
+                    } else {
+                        // Оставляем idx на текущем кадре, если он в пределах нового количества кадров
+                        idx = Math.min(idx, states.length - 1);
+                    }
+                    trackStatus.textContent = `Кадров: ${states.length}`;
+                    updateUI();
+                } catch (e) {
+                    console.error("Ошибка загрузки лога:", e);
+                    trackStatus.textContent = `Ошибка: ${e.message}`;
+                }
+            }
+            function startTracking() {
+                const sel = logSelect.value;
+                if (!sel) return alert("Выберите файл для отслеживания");
+                stopTracking();
+                currentLog = sel;
+                trackStatus.textContent = 'Загрузка...';
+                loadLogFile();
+                if (autoRefresh.checked) {
+                    trackInterval = setInterval(loadLogFile, 1000);
                 }
             }
 
-            function onDragOver(e) {
-                e.preventDefault();
+            function stopTracking() {
+                if (trackInterval) clearInterval(trackInterval);
+                trackInterval = null;
             }
 
-            function onDrop(e) {
-                e.preventDefault();
-                dragCounter = 0;
-                dropZone.classList.add('hidden');
-                handleFile(e);
+            function toggleAutoRefresh() {
+                if (trackInterval) {
+                    // если уже идёт трекинг — перенастроим таймер
+                    stopTracking();
+                    if (autoRefresh.checked) trackInterval = setInterval(loadLogFile, 5000);
+                }
             }
 
-            function updateFrameCounter() {
-                const total = states.length;
-                // +1 чтобы считать кадры с 1, а не с 0
-                const current = states.length > 0 ? idx + 1 : 0;
-                document.getElementById('frameCounter').textContent = `${current}/${total}`;
-            }
-
+            // ----------------------------------------------------
 
             async function handleFile(e) {
                 const file = e.dataTransfer?.files[0] || fileInput.files[0];
                 if (!file) return;
+                stopTracking();
                 try {
                     const text = await file.text();
-                    states = text
-                        .split('\n')
-                        .filter(l => l.trim())
-                        .map(l => JSON.parse(l));
-                    if (!states.length) throw new Error("Пустой файл");
+                    states = text.split('\n').filter(l => l.trim()).map(l => JSON.parse(l));
                     idx = 0;
                     slider.max = states.length - 1;
-                    stopPlay();
                 } catch (err) {
                     alert("Ошибка чтения:\n" + err.message);
                     states = [];
                 }
                 updateUI();
             }
+
+            function onDragEnter(e) { e.preventDefault(); if (dragCounter++ === 0) dropZone.classList.remove('hidden'); }
+            function onDragLeave(e) { e.preventDefault(); if (--dragCounter === 0) dropZone.classList.add('hidden'); }
+            function onDragOver(e) { e.preventDefault(); }
+            function onDrop(e) { e.preventDefault(); dragCounter = 0; dropZone.classList.add('hidden'); handleFile(e); }
 
             function updateUI() {
                 const has = states.length > 0;
@@ -302,16 +375,16 @@
                 prevBtn.disabled = !has;
                 nextBtn.disabled = !has;
                 speedInput.disabled = !has;
-
                 updateFrameCounter();
-
-                if (has) {
-                    slider.value = idx;
-                }
-
+                if (has) slider.value = idx;
                 drawMap();
             }
 
+            function updateFrameCounter() {
+                const total = states.length;
+                const current = total ? idx + 1 : 0;
+                document.getElementById('frameCounter').textContent = `${current}/${total}`;
+            }
 
             function gotoFrame(i) {
                 if (!states.length) return;
@@ -321,34 +394,25 @@
             }
 
             function togglePlay() { timer ? stopPlay() : startPlay(); }
-
             function startPlay() {
                 const fps = Math.max(1, +speedInput.value);
                 timer = setInterval(() => gotoFrame(idx + 1), 1000 / fps);
                 playBtn.textContent = '⏸';
             }
-
             function stopPlay() {
                 clearInterval(timer);
                 timer = null;
                 playBtn.textContent = '▶';
             }
-
-            function restartPlayIfNeeded() {
-                if (timer) { stopPlay(); startPlay(); }
-            }
+            function restartPlayIfNeeded() { if (timer) { stopPlay(); startPlay(); } }
 
             function drawMap() {
-                if (!states.length) {
-                    jsonEditor.value = '';
-                    return;
-                }
+                if (!states.length) { jsonEditor.value = ''; return; }
                 const st = states[idx];
                 const W = st.field_data.width;
                 const H = st.field_data.height;
                 const gridW = W * 1.5 * RADIUS + RADIUS;
                 const gridH = H * Math.sqrt(3) * RADIUS + RADIUS;
-
                 const scale = canvasWrap.clientHeight / gridH;
                 const scaledWidth = gridW * scale;
                 const wrapWidth = canvasWrap.clientWidth;
@@ -360,15 +424,11 @@
                 canvas.style.height = canvas.height + 'px';
                 canvas.style.left = offsetX + 'px';
 
-                // Заполняем фон цветом незанятых плиток
                 ctx.fillStyle = "#fff";
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
-
                 ctx.setTransform(scale, 0, 0, scale, 0, 0);
 
-                st.players.forEach((p, i) => {
-                    if (!COLORS[p]) COLORS[p] = COLOR_POOL[i % COLOR_POOL.length];
-                });
+                st.players.forEach((p, i) => { if (!COLORS[p]) COLORS[p] = COLOR_POOL[i % COLOR_POOL.length]; });
 
                 for (const key in st.field_data.cells) {
                     const cell = st.field_data.cells[key];
@@ -381,7 +441,7 @@
 
                     if (cell.entity && cell.entity !== 'empty') {
                         const img = icons[cell.entity];
-                        if (img.complete) {
+                        if (img && img.complete && img.naturalWidth) {
                             ctx.drawImage(img, x - ICON_SIZE / 2, y - ICON_SIZE / 2, ICON_SIZE, ICON_SIZE);
                         } else {
                             ctx.fillStyle = '#000';
@@ -393,6 +453,20 @@
 
                 jsonEditor.value = JSON.stringify(st, null, 2);
                 updateStats(st);
+            }
+
+            function updateStats(st) {
+                let html = '<strong>Территории:</strong><ul style="margin:4px 0 0 16px; padding-left:16px;">';
+                st.territories_data.forEach(td => {
+                    const owner = td.owner;
+                    const tilesCount = td.tiles.length;
+                    const funds = td.funds;
+                    const color = COLORS[owner] || '#ccc';
+                    html += `<li><span style="display:inline-block;width:12px;height:12px;background:${color};margin-right:6px;vertical-align:middle;border:1px solid #999;"></span>
+                             <em>${owner}</em>: ${tilesCount} tiles, ${funds} funds</li>`;
+                });
+                html += '</ul>';
+                statsDiv.innerHTML = html;
             }
 
             function drawHex(cx, cy, fill) {
@@ -408,6 +482,45 @@
                 ctx.fill();
                 ctx.strokeStyle = '#999';
                 ctx.stroke();
+            }
+
+            // запись MP4/WebM
+            function recordMp4() {
+                const fps = Math.max(1, +speedInput.value);
+                const stream = canvas.captureStream(fps);
+                const mime = MediaRecorder.isTypeSupported('video/mp4')
+                    ? 'video/mp4'
+                    : 'video/webm; codecs=vp8';
+                const recorder = new MediaRecorder(stream, { mimeType: mime });
+                const chunks = [];
+
+                recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+                recorder.onstop = () => {
+                    const blob = new Blob(chunks, { type: mime });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = mime.includes('mp4') ? 'game.mp4' : 'game.webm';
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    createMp4Btn.disabled = false;
+                    mp4Progress.textContent = '';
+                };
+
+                recorder.start();
+
+                let i = 0;
+                (function next() {
+                    if (i >= states.length) {
+                        setTimeout(() => recorder.stop(), 200);
+                        return;
+                    }
+                    idx = i;
+                    slider.value = i;
+                    drawMap();
+                    i++;
+                    setTimeout(next, 1000 / fps);
+                })();
             }
 
             init();
