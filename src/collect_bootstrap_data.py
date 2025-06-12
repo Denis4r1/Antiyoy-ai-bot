@@ -2,6 +2,7 @@
 import asyncio
 import pickle
 import json
+import uuid
 from pathlib import Path
 from datetime import datetime
 from tqdm.asyncio import tqdm_asyncio
@@ -51,7 +52,9 @@ class JSONGameData:
             json.dump(json_data, f, ensure_ascii=False, indent=2)
 
 
-async def collect_single_game(collector: BootstrapDataCollector, game_id: int, progress_bar: tqdm_asyncio) -> Dict:
+async def collect_single_game(
+    collector: BootstrapDataCollector, game_id: int, progress_bar: tqdm_asyncio, session_uuid: str
+) -> Dict:
     """Собирает данные одной игры"""
     try:
         start_time = time.time()
@@ -59,8 +62,8 @@ async def collect_single_game(collector: BootstrapDataCollector, game_id: int, p
         # Собираем данные игры
         game_data = await collector.collect_game(game_id)
 
-        # Сохраняем в JSON
-        output_path = Path(f"bootstrap_data/games/game_{game_id:04d}.json")
+        # Сохраняем в JSON в папку с UUID сессии
+        output_path = Path(f"bootstrap_data/games_{session_uuid}/game_{game_id:04d}.json")
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         JSONGameData.save_game(game_data, output_path)
@@ -89,17 +92,25 @@ async def collect_single_game(collector: BootstrapDataCollector, game_id: int, p
 
 async def main():
     # Настройки
-    NUM_GAMES = 100
-    CONCURRENT_GAMES = 1  # Параллельные игры
-    MCTS_ITERATIONS = 100  # Итераций MCTS на ход
+    NUM_GAMES = 8
+    CONCURRENT_GAMES = 8  # Параллельные игры
+    MCTS_ITERATIONS = 10  # Итераций MCTS на ход
+
+    # Генерируем UUID для этой сессии сбора данных
+    session_uuid = str(uuid.uuid4())[:8]  # Используем короткий UUID для читаемости
+    session_folder = f"bootstrap_data/games_{session_uuid}"
+
+    print(f"📁 Сессия сбора данных: {session_uuid}")
+    print(f"📂 Папка для сохранения: {session_folder}")
 
     # Создаем директории
-    Path("bootstrap_data/games").mkdir(parents=True, exist_ok=True)
+    Path(session_folder).mkdir(parents=True, exist_ok=True)
     Path("bootstrap_data/logs").mkdir(parents=True, exist_ok=True)
 
     # Настройка логирования
+    log_filename = f"bootstrap_data/logs/collection_{session_uuid}_{datetime.now():%Y%m%d_%H%M%S}.log"
     logging.basicConfig(
-        filename=f"bootstrap_data/logs/collection_{datetime.now():%Y%m%d_%H%M%S}.log",
+        filename=log_filename,
         level=logging.INFO,
         format="%(asctime)s - %(levelname)s - %(message)s",
     )
@@ -116,7 +127,7 @@ async def main():
     mcts_params = {
         "iterations": MCTS_ITERATIONS,
         "c": 1.4,  # exploration constant
-        "max_depth": 25,
+        "max_depth": 30,
         "temperature_schedule": {
             0: 1.0,  # Начало игры - больше exploration
             20: 0.5,  # Середина
@@ -138,7 +149,8 @@ async def main():
     for batch_start in range(0, NUM_GAMES, CONCURRENT_GAMES):
         batch_end = min(batch_start + CONCURRENT_GAMES, NUM_GAMES)
         batch_tasks = [
-            collect_single_game(collector, game_id, progress_bar) for game_id in range(batch_start, batch_end)
+            collect_single_game(collector, game_id, progress_bar, session_uuid)
+            for game_id in range(batch_start, batch_end)
         ]
 
         batch_results = await asyncio.gather(*batch_tasks)
@@ -146,23 +158,24 @@ async def main():
 
     progress_bar.close()
 
-    # Сохраняем метаданные
-    await save_metadata(results, mcts_params)
+    # Сохраняем метаданные в папку сессии
+    await save_metadata(results, mcts_params, session_uuid, session_folder)
 
     # Закрываем API
     await api.close()
 
     # Выводим статистику
-    print_statistics(results)
+    print_statistics(results, session_uuid)
 
 
-async def save_metadata(results: List[Dict], mcts_params: Dict):
+async def save_metadata(results: List[Dict], mcts_params: Dict, session_uuid: str, session_folder: str):
     """Сохраняет метаданные о собранных данных"""
 
     successful = [r for r in results if "error" not in r]
     failed = [r for r in results if "error" in r]
 
     metadata = {
+        "session_uuid": session_uuid,
         "collection_date": datetime.now().isoformat(),
         "total_games": len(results),
         "successful_games": len(successful),
@@ -186,17 +199,52 @@ async def save_metadata(results: List[Dict], mcts_params: Dict):
             metadata["statistics"]["win_distribution"].get(winner, 0) + 1
         )
 
-    with open("bootstrap_data/metadata.json", "w") as f:
-        json.dump(metadata, f, indent=2)
+    # Сохраняем метаданные в папку сессии
+    metadata_path = Path(session_folder) / "metadata.json"
+    with open(metadata_path, "w") as f:
+        json.dump(metadata, f, indent=2, ensure_ascii=False)
+
+    # Также сохраняем общий индекс всех сессий
+    await update_sessions_index(session_uuid, metadata)
 
 
-def print_statistics(results: List[Dict]):
+async def update_sessions_index(session_uuid: str, session_metadata: Dict):
+    """Обновляет индекс всех сессий сбора данных"""
+    index_path = Path("bootstrap_data/sessions_index.json")
+
+    # Загружаем существующий индекс или создаем новый
+    if index_path.exists():
+        with open(index_path, "r", encoding="utf-8") as f:
+            index = json.load(f)
+    else:
+        index = {"sessions": []}
+
+    # Добавляем информацию о текущей сессии
+    session_info = {
+        "uuid": session_uuid,
+        "date": session_metadata["collection_date"],
+        "total_games": session_metadata["total_games"],
+        "successful_games": session_metadata["successful_games"],
+        "total_experiences": session_metadata["statistics"]["total_experiences"],
+        "folder": f"games_{session_uuid}",
+    }
+
+    index["sessions"].append(session_info)
+    index["last_updated"] = datetime.now().isoformat()
+
+    # Сохраняем обновленный индекс
+    with open(index_path, "w", encoding="utf-8") as f:
+        json.dump(index, f, indent=2, ensure_ascii=False)
+
+
+def print_statistics(results: List[Dict], session_uuid: str):
     """Выводит финальную статистику"""
     successful = [r for r in results if "error" not in r]
 
     print("\n" + "=" * 50)
     print("СТАТИСТИКА СБОРА ДАННЫХ")
     print("=" * 50)
+    print(f"Сессия: {session_uuid}")
 
     print(f"Успешно собрано игр: {len(successful)}/{len(results)}")
 
@@ -220,6 +268,8 @@ def print_statistics(results: List[Dict]):
         print("\n🏆 Распределение побед:")
         for winner, count in winners.items():
             print(f"   {winner}: {count} ({count/len(successful)*100:.1f}%)")
+
+        print(f"\n📁 Данные сохранены в: bootstrap_data/games_{session_uuid}/")
 
 
 if __name__ == "__main__":
