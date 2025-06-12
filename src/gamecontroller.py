@@ -5,7 +5,7 @@ from src.field import Field, EntityType
 
 class GameController:
     def __init__(self, players:List[str]):
-        self.field = Field(10, 10, players)
+        self.field = Field(8, 8, players)
         self.players = players
         self._current_player_index = random.randint(0, len(players) - 1)
 
