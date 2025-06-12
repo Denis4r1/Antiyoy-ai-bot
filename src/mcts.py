@@ -48,7 +48,7 @@ class Action(BaseModel):
     action_id: int
     action_type: str
     params: Optional[Dict[str, Any]] = None
-    description: Optional[str] = None
+    description: Optional[int] = None
 
 
 class ActionRequest(BaseModel):
@@ -372,25 +372,24 @@ class MCTSPlayer:
                 return random.choice(self.root.untried_actions)
             else:
                 raise ValueError("No valid actions found!")
-            
+
             # Собираем статистику
         stats = {
             "visit_distribution": {},
             "action_values": {},
             "total_visits": self.root.visits
         }
-        
+
         total_visits = sum(child.visits for child in self.root.children)
-        
+
         for child in self.root.children:
             action_id = child.action.action_id
+            action_description = child.action.description
             # Нормализованные визиты
-            stats["visit_distribution"][action_id] = child.visits / total_visits
+            stats["visit_distribution"][action_description] = child.visits / total_visits
             # Средние значения
-            stats["action_values"][action_id] = (
-                child.value / child.visits if child.visits > 0 else 0.0
-            )
-        
+            stats["action_values"][action_description] = child.value / child.visits if child.visits > 0 else 0.0
+
         return best_child.action, stats
 
         return best_child.action
@@ -541,7 +540,7 @@ class BootstrapDataCollector:
         move_count = 0
 
         # Играем игру
-        while move_count < 1000:  # Защита от бесконечных игр
+        while move_count < 200:  # Защита от бесконечных игр
             current_player_idx = state.current_player_index
             current_player = players[current_player_idx]
 

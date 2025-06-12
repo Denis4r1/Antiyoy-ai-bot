@@ -10,6 +10,8 @@ from pathlib import Path
 import os
 import functools
 import json
+from src.all_turns_ever import all_turns_ever
+
 
 
 from src.gamecontroller import GameController
@@ -143,7 +145,7 @@ class Action(BaseModel):
     action_id: int
     action_type: str
     params: Optional[Dict[str, Any]]
-    description: Optional[str]
+    description: Optional[int]
 
 
 class ActionRequest(BaseModel):
@@ -183,7 +185,7 @@ class ApplyActionResponse(BaseModel):
 # 1) /get_actions — внутренняя кеширующая функция
 
 
-@functools.lru_cache(maxsize=10000)
+@functools.lru_cache(maxsize=500)
 def _cached_get_actions(state_json: str) -> List[Action]:
     # pydantic v2: модель из JSON
     state = GameState.model_validate_json(state_json)
@@ -193,7 +195,7 @@ def _cached_get_actions(state_json: str) -> List[Action]:
 
     actions: list[dict] = []
     # всегда доступное
-    actions.append({"action_id": 0, "action_type": "end_turn", "params": {}, "description": "End turn"})
+    actions.append({"action_id": 0, "action_type": "end_turn", "params": {}, "description": all_turns_ever["End turn"]})
     action_id = 1
 
     territories = [t for t in gc.field.territory_manager.territories if t.owner == current_player]
@@ -213,7 +215,7 @@ def _cached_get_actions(state_json: str) -> List[Action]:
                                     "action_id": action_id,
                                     "action_type": "build_action",
                                     "params": {"x": x, "y": y, "building": "farm"},
-                                    "description": f"Build farm at ({y},{x})",
+                                    "description": all_turns_ever[f"Build farm at ({y},{x})"],
                                 }
                             )
                             action_id += 1
@@ -227,7 +229,7 @@ def _cached_get_actions(state_json: str) -> List[Action]:
                             "action_id": action_id,
                             "action_type": "build_action",
                             "params": {"x": x, "y": y, "building": "weakTower"},
-                            "description": f"Weak tower at ({y},{x})",
+                            "description": all_turns_ever[f"Weak tower at ({y},{x})"],
                         }
                     )
                     action_id += 1
@@ -239,7 +241,7 @@ def _cached_get_actions(state_json: str) -> List[Action]:
                             "action_id": action_id,
                             "action_type": "build_action",
                             "params": {"x": x, "y": y, "building": "strongTower"},
-                            "description": f"Strong tower at ({y},{x})",
+                            "description": all_turns_ever[f"Strong tower at ({y},{x})"],
                         }
                     )
                     action_id += 1
@@ -252,7 +254,7 @@ def _cached_get_actions(state_json: str) -> List[Action]:
                                 "action_id": action_id,
                                 "action_type": "spawn_unit",
                                 "params": {"x": x, "y": y, "level": lvl},
-                                "description": f"Spawn lvl {lvl} unit at ({y},{x})",
+                                "description": all_turns_ever[f"Spawn lvl {lvl} unit at ({y},{x})"],
                             }
                         )
                         action_id += 1
@@ -267,7 +269,7 @@ def _cached_get_actions(state_json: str) -> List[Action]:
                                 "action_id": action_id,
                                 "action_type": "move_unit",
                                 "params": {"from_x": x, "from_y": y, "to_x": m["x"], "to_y": m["y"]},
-                                "description": f"Move from ({y},{x}) to ({m['y']},{m['x']})",
+                                "description": all_turns_ever[f"Move from ({y},{x}) to ({m['y']},{m['x']})"],
                             }
                         )
                         action_id += 1
@@ -282,7 +284,7 @@ def _cached_get_actions(state_json: str) -> List[Action]:
 # 2) /apply_action — внутренняя кеширующая функция
 
 
-@functools.lru_cache(maxsize=10000)
+@functools.lru_cache(maxsize=500)
 def _cached_apply_action(
     state_json: str, action_id: Optional[int], action_type: Optional[str], params_json: str, description: Optional[str]
 ) -> ApplyActionResponse:
@@ -317,6 +319,9 @@ def _cached_apply_action(
     if not result:
         raise HTTPException(status_code=400, detail="Invalid action")
 
+    winner = gc.field.is_terminal()
+    is_game_over = winner is not None
+
     # Собираем новый GameState
     fd = gc.field.to_dict()
     td = [{"owner": t.owner, "funds": t.funds, "tiles": list(t.tiles)} for t in gc.field.territory_manager.territories]
@@ -329,8 +334,8 @@ def _cached_apply_action(
 
     return ApplyActionResponse(
         state=new_state,
-        is_game_over=(result.get("type") == "game_over"),
-        winner=(result.get("winner") if result.get("type") == "game_over" else None),
+        is_game_over=is_game_over,
+        winner=winner,
     )
 
 
@@ -342,8 +347,10 @@ def generate_state(num_players: int = 2, random: bool = False):
     """Создает новую игру и возвращает ее состояние"""
     try:
         if (not random):
-            with open("static/map_basic_10x10.json", "r") as f:
+            with open("static/map_basic_small.json", "r") as f:
                 return json.load(f)
+            # with open("static/map_basic_10x10.json", "r") as f:
+            #     return json.load(f)
 
         players = [f"player_{i}" for i in range(num_players)]
 
@@ -474,4 +481,4 @@ async def get_log(filename: str):
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run("game_interface:app", workers=32, host="0.0.0.0", port=8080)
