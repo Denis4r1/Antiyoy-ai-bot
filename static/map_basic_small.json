@@ -1,0 +1,169 @@
+{
+    "players": [
+        "player_0",
+        "player_1"
+    ],
+    "current_player_index": 0,
+    "field_data": {
+        "height": 8,
+        "width": 8,
+        "cells": {
+            "2,3": {
+                "owner": null,
+                "entity": "empty",
+                "has_moved": false
+            },
+            "2,4": {
+                "owner": "player_0",
+                "entity": "empty",
+                "has_moved": false
+            },
+            "2,5": {
+                "owner": "player_0",
+                "entity": "base",
+                "has_moved": false
+            },
+            "3,3": {
+                "owner": null,
+                "entity": "empty",
+                "has_moved": false
+            },
+            "3,4": {
+                "owner": "player_0",
+                "entity": "empty",
+                "has_moved": false
+            },
+            "3,5": {
+                "owner": "player_0",
+                "entity": "empty",
+                "has_moved": false
+            },
+            "4,3": {
+                "owner": "player_1",
+                "entity": "empty",
+                "has_moved": false
+            },
+            "4,4": {
+                "owner": "player_1",
+                "entity": "empty",
+                "has_moved": false
+            },
+            "4,5": {
+                "owner": "player_0",
+                "entity": "empty",
+                "has_moved": false
+            },
+            "5,3": {
+                "owner": "player_1",
+                "entity": "base",
+                "has_moved": false
+            },
+            "5,4": {
+                "owner": "player_1",
+                "entity": "empty",
+                "has_moved": false
+            },
+            "5,5": {
+                "owner": null,
+                "entity": "empty",
+                "has_moved": false
+            },
+            "5,6": {
+                "owner": null,
+                "entity": "empty",
+                "has_moved": false
+            },
+            "5,7": {
+                "owner": null,
+                "entity": "empty",
+                "has_moved": false
+            },
+            "6,4": {
+                "owner": "player_1",
+                "entity": "empty",
+                "has_moved": false
+            },
+            "6,5": {
+                "owner": null,
+                "entity": "empty",
+                "has_moved": false
+            },
+            "6,6": {
+                "owner": null,
+                "entity": "empty",
+                "has_moved": false
+            },
+            "6,7": {
+                "owner": null,
+                "entity": "empty",
+                "has_moved": false
+            }
+        },
+        "territories": [
+            {
+                "player_0": [
+                    "territory 5 tiles, 10 funds, +5 income"
+                ]
+            },
+            {
+                "player_1": [
+                    "territory 5 tiles, 10 funds, +5 income"
+                ]
+            }
+        ]
+    },
+    "territories_data": [
+        {
+            "owner": "player_0",
+            "funds": 10,
+            "tiles": [
+                [
+                    2,
+                    4
+                ],
+                [
+                    3,
+                    4
+                ],
+                [
+                    4,
+                    5
+                ],
+                [
+                    2,
+                    5
+                ],
+                [
+                    3,
+                    5
+                ]
+            ]
+        },
+        {
+            "owner": "player_1",
+            "funds": 10,
+            "tiles": [
+                [
+                    4,
+                    4
+                ],
+                [
+                    4,
+                    3
+                ],
+                [
+                    5,
+                    4
+                ],
+                [
+                    6,
+                    4
+                ],
+                [
+                    5,
+                    3
+                ]
+            ]
+        }
+    ]
+}
