@@ -384,7 +384,7 @@ class Field:
         if start_cell.has_moved:
             return []
 
-        max_range = 4
+        max_range = 2
         queue = deque([(start, 0)])
         visited = {start}
         candidates = set()
@@ -654,7 +654,7 @@ class Field:
 
             # Создаем юнит обычным способом
             cell.entity = get_unit_type_by_level(level)
-            
+
         cell.has_moved = True
         territory.funds -= cost
 
@@ -728,6 +728,27 @@ class Field:
         if len(owners_present) == 1:
             return owners_present.pop()
 
+        return None
+
+    def is_terminal(self) -> Optional[str]:
+        """
+        Проверяет, завершена ли игра.
+
+        Игра считается завершенной, если территории остались только у одного игрока.
+        В этом случае он является победителем.
+
+        Returns:
+            str: Имя игрока-победителя, если игра завершена
+            None: Если игра не завершена (территории у нескольких игроков или нет территорий вообще)
+        """
+        # Собираем уникальных владельцев территорий (исключаем None)
+        owners_present = {t.owner for t in self.territory_manager.territories if t.owner is not None}
+        print(owners_present)
+        # Если остался только один владелец территорий - он победил
+        if len(owners_present) == 1:
+            print("gameover")
+            return owners_present.pop()
+        # Иначе игра не завершена
         return None
 
 
