@@ -1,7 +1,11 @@
 from typing import Dict, List, Set
 from fastapi import WebSocket
 from ..monitoring.logging_config import get_logger
-from ..monitoring.metrics import websocket_connections_total, websocket_disconnections_total, errors_total
+from ..monitoring.metrics import (
+    websocket_connections_total,
+    websocket_disconnections_total,
+    errors_total,
+)
 
 logger = get_logger("managers")
 
@@ -45,7 +49,8 @@ class LobbyConnectionManager:
                         logger.debug(f"Removed empty lobby {room_id}")
                     else:
                         logger.debug(
-                            f"WebSocket disconnected from lobby {room_id}. " f"Remaining connections: {remaining}"
+                            f"WebSocket disconnected from lobby {room_id}. "
+                            f"Remaining connections: {remaining}"
                         )
         except Exception as e:
             logger.error(f"Error during lobby disconnect for room {room_id}: {e}")
@@ -73,7 +78,9 @@ class LobbyConnectionManager:
             self.disconnect(room_id, failed_conn)
 
         if failed_connections:
-            logger.info(f"Removed {len(failed_connections)} failed connections from lobby {room_id}")
+            logger.info(
+                f"Removed {len(failed_connections)} failed connections from lobby {room_id}"
+            )
 
     def get_connection_count(self, room_id: str) -> int:
         """Получить количество подключений в лобби"""
@@ -103,7 +110,10 @@ class GameConnectionManager:
         try:
             allowed = self.allowed_players.get(room_id)
             if not allowed or token not in allowed:
-                logger.warning(f"Unauthorized game connection attempt: " f"room={room_id}, token={token[:8]}...")
+                logger.warning(
+                    f"Unauthorized game connection attempt: "
+                    f"room={room_id}, token={token[:8]}..."
+                )
                 await websocket.close(code=1008)
                 return False
 
@@ -162,7 +172,9 @@ class GameConnectionManager:
             try:
                 await websocket.send_text(message)
             except Exception as e:
-                logger.warning(f"Failed to send message to game player {token[:8]}...: {e}")
+                logger.warning(
+                    f"Failed to send message to game player {token[:8]}...: {e}"
+                )
                 failed_tokens.append(token)
                 errors_total.labels(type="websocket").inc()
 
@@ -171,7 +183,9 @@ class GameConnectionManager:
             self.disconnect(room_id, failed_token)
 
         if failed_tokens:
-            logger.info(f"Removed {len(failed_tokens)} failed connections from game {room_id}")
+            logger.info(
+                f"Removed {len(failed_tokens)} failed connections from game {room_id}"
+            )
 
     async def send_personal_message(self, room_id: str, token: str, message: str):
         """Отправить персональное сообщение игроку"""
@@ -182,7 +196,10 @@ class GameConnectionManager:
                     await ws_map[token].send_text(message)
                     return True
 
-            logger.warning(f"Could not send personal message: " f"room={room_id}, token={token[:8]}... not found")
+            logger.warning(
+                f"Could not send personal message: "
+                f"room={room_id}, token={token[:8]}... not found"
+            )
             return False
 
         except Exception as e:

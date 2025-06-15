@@ -14,7 +14,9 @@ logger = get_logger("game_service")
 class GameService:
     """Сервис для управления игровыми комнатами и играми"""
 
-    def __init__(self, lobby_manager: LobbyConnectionManager, game_manager: GameConnectionManager):
+    def __init__(
+        self, lobby_manager: LobbyConnectionManager, game_manager: GameConnectionManager
+    ):
         self.rooms: Dict[str, Room] = {}
         self.lobby_manager = lobby_manager
         self.game_manager = game_manager
@@ -68,16 +70,22 @@ class GameService:
                 game_connections = self.game_manager.get_connection_count(room_id)
                 if game_connections == 0:
                     should_remove = True
-                    logger.info(f"Removing game room {room_id} - no active game connections")
+                    logger.info(
+                        f"Removing game room {room_id} - no active game connections"
+                    )
                 else:
-                    logger.info(f"Room {room_id} has {game_connections} game connections, cancelling deletion")
+                    logger.info(
+                        f"Room {room_id} has {game_connections} game connections, cancelling deletion"
+                    )
             else:
                 # Для лобби проверяем количество пользователей
                 if room.get_user_count() == 0:
                     should_remove = True
                     logger.info(f"Removing lobby room {room_id} - no users")
                 else:
-                    logger.info(f"Room {room_id} has {room.get_user_count()} users, cancelling deletion")
+                    logger.info(
+                        f"Room {room_id} has {room.get_user_count()} users, cancelling deletion"
+                    )
 
             if should_remove:
                 self.remove_room(room_id)
@@ -112,14 +120,18 @@ class GameService:
         room.schedule_deletion(deletion_task)
 
         game_or_lobby = "game" if room.has_game_started() else "lobby"
-        logger.info(f"Scheduled removal of empty {game_or_lobby} room {room_id} in {ROOM_DELETION_DELAY} seconds")
+        logger.info(
+            f"Scheduled removal of empty {game_or_lobby} room {room_id} in {ROOM_DELETION_DELAY} seconds"
+        )
 
     async def start_game_after_delay(self, room: Room):
         """Запустить игру после обратного отсчета"""
         try:
             # Обратный отсчет
             for i in range(GAME_START_COUNTDOWN, 0, -1):
-                await self.lobby_manager.broadcast(room.room_id, f"Игра начнется через {i}")
+                await self.lobby_manager.broadcast(
+                    room.room_id, f"Игра начнется через {i}"
+                )
                 await asyncio.sleep(1)
 
             # Проверяем что все еще готовы
@@ -133,13 +145,19 @@ class GameService:
 
                 # Уведомляем о старте игры
                 await self.lobby_manager.broadcast(room.room_id, "Игра начинается!")
-                await self.lobby_manager.broadcast(room.room_id, json.dumps({"type": "game_start"}))
+                await self.lobby_manager.broadcast(
+                    room.room_id, json.dumps({"type": "game_start"})
+                )
 
                 # Метрики
                 games_started_total.inc()
-                logger.info(f"Game started in room {room.room_id} with {len(player_names)} players")
+                logger.info(
+                    f"Game started in room {room.room_id} with {len(player_names)} players"
+                )
             else:
-                logger.warning(f"Game start cancelled in room {room.room_id} - not all players ready")
+                logger.warning(
+                    f"Game start cancelled in room {room.room_id} - not all players ready"
+                )
 
         except asyncio.CancelledError:
             await self.lobby_manager.broadcast(room.room_id, "Запуск игры отменён")
@@ -155,7 +173,9 @@ class GameService:
         if room.all_ready() and len(room.users) >= 2:  # Минимум 2 игрока
             if room.game_start_task is None:
                 logger.info(f"Starting countdown for room {room.room_id}")
-                room.game_start_task = asyncio.create_task(self.start_game_after_delay(room))
+                room.game_start_task = asyncio.create_task(
+                    self.start_game_after_delay(room)
+                )
         else:
             if room.game_start_task:
                 logger.info(f"Cancelling countdown for room {room.room_id}")
@@ -203,7 +223,9 @@ def get_game_service() -> GameService:
     return game_service
 
 
-def init_game_service(lobby_manager: LobbyConnectionManager, game_manager: GameConnectionManager):
+def init_game_service(
+    lobby_manager: LobbyConnectionManager, game_manager: GameConnectionManager
+):
     """Инициализировать глобальный GameService"""
     global game_service
     game_service = GameService(lobby_manager, game_manager)

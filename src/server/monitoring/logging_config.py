@@ -7,7 +7,10 @@ from ..config import LOG_LEVEL, DEBUG
 def setup_logging():
     """Настройка логирования для приложения"""
 
-    log_format = "%(asctime)s | %(levelname)8s | %(name)s | " "%(funcName)s:%(lineno)d | %(message)s"
+    log_format = (
+        "%(asctime)s | %(levelname)8s | %(name)s | "
+        "%(funcName)s:%(lineno)d | %(message)s"
+    )
 
     logging_config = {
         "version": 1,

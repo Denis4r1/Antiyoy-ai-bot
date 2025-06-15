@@ -22,11 +22,15 @@ class Room:
         """Добавить пользователя в комнату"""
         if token not in self.users:
             self.users[token] = {"token": token, "name": name, "ready": False}
-            logger.info(f"Added new user {name} (token: {token[:8]}...) to room {self.room_id}")
+            logger.info(
+                f"Added new user {name} (token: {token[:8]}...) to room {self.room_id}"
+            )
         else:
             old_name = self.users[token]["name"]
             self.users[token]["name"] = name
-            logger.info(f"Updated user name from {old_name} to {name} in room {self.room_id}")
+            logger.info(
+                f"Updated user name from {old_name} to {name} in room {self.room_id}"
+            )
 
         # Отменяем удаление комнаты если игрок вернулся
         self.cancel_deletion()
@@ -36,7 +40,9 @@ class Room:
         if token in self.users:
             name = self.users[token]["name"]
             del self.users[token]
-            logger.info(f"Removed user {name} (token: {token[:8]}...) from room {self.room_id}")
+            logger.info(
+                f"Removed user {name} (token: {token[:8]}...) from room {self.room_id}"
+            )
 
     def set_ready(self, token: str, ready: bool):
         """Установить готовность пользователя"""
@@ -58,7 +64,9 @@ class Room:
         result = bool(self.users) and all(u["ready"] for u in self.users.values())
 
         if result and len(self.users) > 1:
-            logger.info(f"All {len(self.users)} players are ready in room {self.room_id}")
+            logger.info(
+                f"All {len(self.users)} players are ready in room {self.room_id}"
+            )
 
         return result
 
@@ -78,9 +86,13 @@ class Room:
         """Запустить игру"""
         if self.game_controller is None:
             self.game_controller = GameController(players_names)
-            logger.info(f"Started game in room {self.room_id} with players: {players_names}")
+            logger.info(
+                f"Started game in room {self.room_id} with players: {players_names}"
+            )
         else:
-            logger.warning(f"Attempted to start game in room {self.room_id} but game already started")
+            logger.warning(
+                f"Attempted to start game in room {self.room_id} but game already started"
+            )
 
     def schedule_deletion(self, deletion_task: asyncio.Task):
         """Запланировать удаление комнаты"""

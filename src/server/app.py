@@ -38,7 +38,9 @@ async def lifespan(app: FastAPI):
 
                 game_service = get_game_service()
                 if game_service:
-                    metrics.update_game_metrics(game_service.rooms, lobby_manager, game_manager)
+                    metrics.update_game_metrics(
+                        game_service.rooms, lobby_manager, game_manager
+                    )
             except Exception as e:
                 logger.error(f"Error updating metrics: {e}")
             await asyncio.sleep(30)  # Обновляем каждые 30 секунд
@@ -111,4 +113,6 @@ if __name__ == "__main__":
     import uvicorn
 
     # Для разработки
-    uvicorn.run("src.server.app:app", host="0.0.0.0", port=8000, reload=DEBUG, log_level="info")
+    uvicorn.run(
+        "src.server.app:app", host="0.0.0.0", port=8000, reload=DEBUG, log_level="info"
+    )

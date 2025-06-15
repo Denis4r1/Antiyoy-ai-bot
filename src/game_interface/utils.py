@@ -61,7 +61,9 @@ def reconstruct_game(state: GameState) -> GameController:
         owner = territory_data.owner
         funds = territory_data.funds
 
-        territory = Territory(owner=owner, field=gc.field, base_key=base_key, funds=funds)
+        territory = Territory(
+            owner=owner, field=gc.field, base_key=base_key, funds=funds
+        )
         territory.tiles = set([tuple(i) for i in territory_tiles])
         territories.append(territory)
     gc.field.territory_manager = TerritoryManager(gc.field, territories)
@@ -88,7 +90,9 @@ def _cached_get_actions(state_json: str) -> List[Action]:
     )
     action_id = 1
 
-    territories = [t for t in gc.field.territory_manager.territories if t.owner == current_player]
+    territories = [
+        t for t in gc.field.territory_manager.territories if t.owner == current_player
+    ]
     for territory in territories:
         for y, x in territory.tiles:
             cell = gc.field.cells[(y, x)]
@@ -97,7 +101,11 @@ def _cached_get_actions(state_json: str) -> List[Action]:
                 # build farm
                 try:
                     if gc.field.has_farm_or_base_neigbour((y, x)):
-                        num_farms = sum(1 for p in territory.tiles if gc.field.cells[p].entity == EntityType.FARM)
+                        num_farms = sum(
+                            1
+                            for p in territory.tiles
+                            if gc.field.cells[p].entity == EntityType.FARM
+                        )
                         cost = 12 + 2 * num_farms
                         if territory.funds >= cost:
                             actions.append(
@@ -105,7 +113,9 @@ def _cached_get_actions(state_json: str) -> List[Action]:
                                     "action_id": action_id,
                                     "action_type": "build_action",
                                     "params": {"x": x, "y": y, "building": "farm"},
-                                    "description": all_turns_ever[f"Build farm at ({y},{x})"],
+                                    "description": all_turns_ever[
+                                        f"Build farm at ({y},{x})"
+                                    ],
                                 }
                             )
                             action_id += 1
@@ -144,7 +154,9 @@ def _cached_get_actions(state_json: str) -> List[Action]:
                                 "action_id": action_id,
                                 "action_type": "spawn_unit",
                                 "params": {"x": x, "y": y, "level": lvl},
-                                "description": all_turns_ever[f"Spawn lvl {lvl} unit at ({y},{x})"],
+                                "description": all_turns_ever[
+                                    f"Spawn lvl {lvl} unit at ({y},{x})"
+                                ],
                             }
                         )
                         action_id += 1
@@ -164,7 +176,9 @@ def _cached_get_actions(state_json: str) -> List[Action]:
                                     "to_x": m["x"],
                                     "to_y": m["y"],
                                 },
-                                "description": all_turns_ever[f"Move from ({y},{x}) to ({m['y']},{m['x']})"],
+                                "description": all_turns_ever[
+                                    f"Move from ({y},{x}) to ({m['y']},{m['x']})"
+                                ],
                             }
                         )
                         action_id += 1
@@ -201,7 +215,9 @@ def _cached_apply_action(
         act_list = _cached_get_actions(req.state.json())
         act = next((x for x in act_list if x.action_id == req.action_id), None)
         if act is None:
-            raise HTTPException(status_code=400, detail=f"Action {req.action_id} not found")
+            raise HTTPException(
+                status_code=400, detail=f"Action {req.action_id} not found"
+            )
         action_type, params = act.action_type, act.params or {}
     else:
         if not req.action_type:
@@ -209,7 +225,9 @@ def _cached_apply_action(
         action_type, params = req.action_type, req.params or {}
 
     # Применяем ход
-    result = gc.process_message({"type": action_type, "payload": params}, current_player)
+    result = gc.process_message(
+        {"type": action_type, "payload": params}, current_player
+    )
     if not result:
         raise HTTPException(status_code=400, detail="Invalid action")
 
@@ -218,7 +236,10 @@ def _cached_apply_action(
 
     # Собираем новый GameState
     fd = gc.field.to_dict()
-    td = [{"owner": t.owner, "funds": t.funds, "tiles": list(t.tiles)} for t in gc.field.territory_manager.territories]
+    td = [
+        {"owner": t.owner, "funds": t.funds, "tiles": list(t.tiles)}
+        for t in gc.field.territory_manager.territories
+    ]
     new_state = GameState(
         players=gc.players,
         current_player_index=gc._current_player_index,

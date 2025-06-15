@@ -110,7 +110,9 @@ def generate_state(num_players: int = 2, random: bool = False):
         return state
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to generate game state: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to generate game state: {str(e)}"
+        )
 
 
 @app.post("/get_actions", response_model=List[Action])
@@ -159,4 +161,6 @@ async def get_log(filename: str):
     file_path = os.path.join(LOG_DIR, filename)
     if not os.path.isfile(file_path):
         raise HTTPException(status_code=404, detail="Log not found")
-    return FileResponse(path=file_path, media_type="application/json", filename=filename)
+    return FileResponse(
+        path=file_path, media_type="application/json", filename=filename
+    )
