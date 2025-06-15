@@ -75,7 +75,7 @@ def generate_state(num_players: int = 2, random: bool = False):
     """Создает новую игру и возвращает ее состояние"""
     try:
         if not random:
-            with open("static/map_basic_small.json", "r") as f:
+            with open("web/static/maps/map_basic_small.json", "r") as f:
                 return json.load(f)
             # with open("static/map_basic_10x10.json", "r") as f:
             #     return json.load(f)
