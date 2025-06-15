@@ -10,11 +10,11 @@ from pathlib import Path
 import os
 import functools
 import json
-from src.all_turns_ever import all_turns_ever
+from src.utils.all_turns_ever import all_turns_ever
 
 
-from src.gamecontroller import GameController
-from src.field import (
+from src.game.gamecontroller import GameController
+from src.game.core.field import (
     EntityType,
     Field,
     Cell,
@@ -36,31 +36,31 @@ app.add_middleware(
 )
 
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory="web/static"), name="static")
 
 
 @app.get("/state_editor")
 async def get_index():
-    with open("static/state_editor.html", "r", encoding="utf-8") as f:
+    with open("web/templates/state_editor.html", "r", encoding="utf-8") as f:
         return HTMLResponse(f.read())
 
 
 @app.get("/log_player")
 async def get_index():
-    with open("static/log_player.html", "r", encoding="utf-8") as f:
+    with open("web/templates/log_player.html", "r", encoding="utf-8") as f:
         return HTMLResponse(f.read())
 
 
 @app.get("/log_player/demo", response_class=HTMLResponse)
 async def log_player_demo():
-    html = Path("static/log_player.html").read_text(encoding="utf-8")
+    html = Path("web/templates/log_player.html").read_text(encoding="utf-8")
 
     # a little hack to inject a demo json file into the page
     injection = """
     <script>
       window.addEventListener('load', async () => {
         // 1) fetch the demo log
-        const res  = await fetch('/static/demo_log.jsonl');
+        const res  = await fetch('/static/misc/demo_log.jsonl');
         const text = await res.text();
 
         // 2) wrap it in a File and DataTransfer

@@ -1,7 +1,7 @@
 import random
 from typing import Dict, Any, Optional, List
 
-from src.field import Field, EntityType
+from src.game.core.field import Field, EntityType
 
 
 class GameController:

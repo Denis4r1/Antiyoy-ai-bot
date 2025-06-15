@@ -8,23 +8,23 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 
-from src.gamecontroller import GameController
+from src.game.gamecontroller import GameController
 
 app = FastAPI()
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory="web/static"), name="static")
 
 
 # ======= отдаём лобби-HTML =======
 @app.get("/")
 async def get_index():
-    with open("static/newlobby.html", "r", encoding="utf-8") as f:
+    with open("web/templates/newlobby.html", "r", encoding="utf-8") as f:
         return HTMLResponse(f.read())
 
 
 # ======= отдаём game-HTML =======
 @app.get("/game/{room_id}")
 async def get_game_page(room_id: str, token: str = Query(None)):
-    with open("static/gamepage.html", "r", encoding="utf-8") as f:
+    with open("web/templates/gamepage.html", "r", encoding="utf-8") as f:
         html_content = f.read()
     return HTMLResponse(content=html_content, status_code=200)
 
