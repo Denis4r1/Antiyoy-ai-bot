@@ -38,7 +38,9 @@ def create_api_router(game_manager=None):
 
             # Проверяем что игра началась
             if not room.has_game_started():
-                logger.warning(f"Attempt to access game page for room {room_id} before game started")
+                logger.warning(
+                    f"Attempt to access game page for room {room_id} before game started"
+                )
                 raise HTTPException(status_code=400, detail="Игра еще не началась")
 
             # Проверяем токен если игра началась
@@ -114,7 +116,9 @@ def create_api_router(game_manager=None):
                 # Добавляем нового пользователя
                 room.add_user(token, name)
 
-            logger.info(f"API: User {name} (token: {token[:8]}...) joined room {room_id}")
+            logger.info(
+                f"API: User {name} (token: {token[:8]}...) joined room {room_id}"
+            )
 
             return {
                 "detail": "Вы успешно подключились к комнате",
@@ -150,7 +154,9 @@ def create_api_router(game_manager=None):
         try:
             game_service = get_game_service()
             if game_service is None:
-                raise HTTPException(status_code=500, detail="Game service not initialized")
+                raise HTTPException(
+                    status_code=500, detail="Game service not initialized"
+                )
 
             stats = game_service.get_rooms_stats()
 

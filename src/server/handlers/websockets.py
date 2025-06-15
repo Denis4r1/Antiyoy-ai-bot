@@ -9,7 +9,9 @@ from ..monitoring.metrics import errors_total, lobby_wait_time
 logger = get_logger("websockets")
 
 
-def create_websocket_router(lobby_manager: LobbyConnectionManager, game_manager: GameConnectionManager):
+def create_websocket_router(
+    lobby_manager: LobbyConnectionManager, game_manager: GameConnectionManager
+):
     """Создать роутер для WebSocket endpoints"""
     router = APIRouter()
 
@@ -26,7 +28,9 @@ def create_websocket_router(lobby_manager: LobbyConnectionManager, game_manager:
 
         # Проверяем, что token есть в комнате
         if token not in room.users:
-            logger.warning(f"WebSocket connection with invalid token {token[:8]}... to lobby {room_id}")
+            logger.warning(
+                f"WebSocket connection with invalid token {token[:8]}... to lobby {room_id}"
+            )
             await websocket.close(code=1008)
             return
 
@@ -44,7 +48,9 @@ def create_websocket_router(lobby_manager: LobbyConnectionManager, game_manager:
             room_id,
             json.dumps({"type": "players_update", "players": room.get_players_list()}),
         )
-        await lobby_manager.broadcast(room_id, f"Система: {username} присоединился к комнате")
+        await lobby_manager.broadcast(
+            room_id, f"Система: {username} присоединился к комнате"
+        )
 
         try:
             while True:
@@ -54,7 +60,12 @@ def create_websocket_router(lobby_manager: LobbyConnectionManager, game_manager:
                     room.set_ready(token, True)
                     await lobby_manager.broadcast(
                         room_id,
-                        json.dumps({"type": "players_update", "players": room.get_players_list()}),
+                        json.dumps(
+                            {
+                                "type": "players_update",
+                                "players": room.get_players_list(),
+                            }
+                        ),
                     )
                     await game_service.check_game_start(room)
 
@@ -62,7 +73,12 @@ def create_websocket_router(lobby_manager: LobbyConnectionManager, game_manager:
                     room.set_ready(token, False)
                     await lobby_manager.broadcast(
                         room_id,
-                        json.dumps({"type": "players_update", "players": room.get_players_list()}),
+                        json.dumps(
+                            {
+                                "type": "players_update",
+                                "players": room.get_players_list(),
+                            }
+                        ),
                     )
                     await game_service.check_game_start(room)
 
@@ -86,29 +102,39 @@ def create_websocket_router(lobby_manager: LobbyConnectionManager, game_manager:
 
                 await lobby_manager.broadcast(
                     room_id,
-                    json.dumps({"type": "players_update", "players": room.get_players_list()}),
+                    json.dumps(
+                        {"type": "players_update", "players": room.get_players_list()}
+                    ),
                 )
-                await lobby_manager.broadcast(room_id, f"Система: {username} покинул комнату")
+                await lobby_manager.broadcast(
+                    room_id, f"Система: {username} покинул комнату"
+                )
                 await game_service.check_game_start(room)
 
                 # Планируем удаление пустой комнаты с задержкой
                 if room.get_user_count() == 0 and not room.has_game_started():
                     game_service.schedule_room_removal(room_id)
 
-            logger.info(f"User {username} disconnected from lobby {room_id} after {lobby_time:.1f}s")
+            logger.info(
+                f"User {username} disconnected from lobby {room_id} after {lobby_time:.1f}s"
+            )
 
         except Exception as e:
             logger.error(f"Error in lobby WebSocket for {room_id}: {e}")
             errors_total.labels(type="websocket").inc()
 
     @router.websocket("/ws/game/{room_id}/{token}/{username}")
-    async def game_ws_endpoint(websocket: WebSocket, room_id: str, token: str, username: str):
+    async def game_ws_endpoint(
+        websocket: WebSocket, room_id: str, token: str, username: str
+    ):
         """WebSocket endpoint для игры"""
         # Проверяем разрешение на подключение
         connected_ok = await game_manager.connect(room_id, token, websocket)
 
         if not connected_ok:
-            logger.warning(f"Failed to connect {username} (token: {token[:8]}...) to game {room_id}")
+            logger.warning(
+                f"Failed to connect {username} (token: {token[:8]}...) to game {room_id}"
+            )
             return
 
         game_service = get_game_service()
@@ -131,9 +157,13 @@ def create_websocket_router(lobby_manager: LobbyConnectionManager, game_manager:
                 "type": "game_state_update",
                 "players": room.game_controller.players,
                 "field": room.game_controller.field.to_dict(),
-                "current_player": room.game_controller.players[room.game_controller._current_player_index],
+                "current_player": room.game_controller.players[
+                    room.game_controller._current_player_index
+                ],
             }
-            await game_manager.send_personal_message(room_id, token, json.dumps(initial_state))
+            await game_manager.send_personal_message(
+                room_id, token, json.dumps(initial_state)
+            )
         except Exception as e:
             logger.error(f"Failed to send initial game state to {username}: {e}")
             errors_total.labels(type="websocket").inc()
@@ -145,15 +175,21 @@ def create_websocket_router(lobby_manager: LobbyConnectionManager, game_manager:
                 try:
                     message = json.loads(raw_data)
                 except json.JSONDecodeError:
-                    logger.warning(f"Invalid JSON from {username} in game {room_id}: {raw_data}")
+                    logger.warning(
+                        f"Invalid JSON from {username} in game {room_id}: {raw_data}"
+                    )
                     continue
 
                 try:
                     # Передаем сообщение на обработку в game_controller
                     result = room.game_controller.process_message(message, username)
                 except Exception as e:
-                    logger.error(f"Game controller error for {username} in {room_id}: {e}")
-                    await websocket.send_text(json.dumps({"type": "error", "message": str(e)}))
+                    logger.error(
+                        f"Game controller error for {username} in {room_id}: {e}"
+                    )
+                    await websocket.send_text(
+                        json.dumps({"type": "error", "message": str(e)})
+                    )
                     errors_total.labels(type="game").inc()
                     continue
 
@@ -161,7 +197,9 @@ def create_websocket_router(lobby_manager: LobbyConnectionManager, game_manager:
                     try:
                         if result["type"] == "available_moves":
                             # Отправка только запрашивающему
-                            await game_manager.send_personal_message(room_id, token, json.dumps(result))
+                            await game_manager.send_personal_message(
+                                room_id, token, json.dumps(result)
+                            )
 
                         elif result["type"] == "game_over":
                             # Создаем новое лобби для игроков
@@ -170,7 +208,9 @@ def create_websocket_router(lobby_manager: LobbyConnectionManager, game_manager:
                                 result["lobby_id"] = new_lobby_id
 
                             await game_manager.broadcast(room_id, json.dumps(result))
-                            logger.info(f"Game over in room {room_id}, new lobby: {new_lobby_id}")
+                            logger.info(
+                                f"Game over in room {room_id}, new lobby: {new_lobby_id}"
+                            )
 
                         elif result["type"] == "game_state_update":
                             await game_manager.broadcast(room_id, json.dumps(result))
@@ -188,7 +228,9 @@ def create_websocket_router(lobby_manager: LobbyConnectionManager, game_manager:
                 game_service = get_game_service()
                 room = game_service.get_room(room_id)
                 if room and room.has_game_started():
-                    logger.info(f"All players disconnected from game {room_id}, scheduling room removal")
+                    logger.info(
+                        f"All players disconnected from game {room_id}, scheduling room removal"
+                    )
                     game_service.schedule_room_removal(room_id, force_for_game=True)
 
         except Exception as e:
