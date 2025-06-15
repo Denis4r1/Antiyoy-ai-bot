@@ -13,9 +13,17 @@ import json
 from src.all_turns_ever import all_turns_ever
 
 
-
 from src.gamecontroller import GameController
-from src.field import EntityType, Field, Cell, TerritoryManager, Territory, COST_WEAK_TOWER, COST_STRONG_TOWER, UNIT_COST
+from src.field import (
+    EntityType,
+    Field,
+    Cell,
+    TerritoryManager,
+    Territory,
+    COST_WEAK_TOWER,
+    COST_STRONG_TOWER,
+    UNIT_COST,
+)
 
 app = FastAPI()
 
@@ -29,6 +37,7 @@ app.add_middleware(
 
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 @app.get("/state_editor")
 async def get_index():
@@ -80,6 +89,7 @@ class CellData(BaseModel):
         entity (str): Тип сущности в клетке (например, 'EMPTY', 'UNIT_1', 'FARM')
         has_moved (bool): Если на клетке юнит, то True, если он уже переместился в этом ходу.
     """
+
     owner: Optional[str]
     entity: str
     has_moved: bool
@@ -95,6 +105,7 @@ class FieldData(BaseModel):
         cells (Dict[str, CellData]): Словарь клеток с ключами 'y,x' (строка, столбец) и данными клеток.
         territories (List[Dict[str, List[str]]]): Список территорий в виде [owner: info] где info - какая-то строка
     """
+
     height: int
     width: int
     cells: Dict[str, CellData]
@@ -110,6 +121,7 @@ class TerritoryData(BaseModel):
         funds (int): Доступные средства территории.
         tiles (List[List[int]]): Список координат [y, x] клеток территории.
     """
+
     owner: str
     funds: int
     tiles: List[List[int]]
@@ -125,6 +137,7 @@ class GameState(BaseModel):
         field_data (FieldData): Данные игрового поля.
         territories_data (List[TerritoryData]): Данные о территориях.
     """
+
     players: List[str]
     current_player_index: int
     field_data: FieldData
@@ -159,6 +172,7 @@ class ActionRequest(BaseModel):
         action_id (Optional[int]): ID действия из /get_actions (альтернатива action_type и params).
         description (Optional[str]): необязательное описание действия.
     """
+
     state: GameState
     action_type: Optional[str] = None
     params: Optional[Dict[str, Any]] = None
@@ -195,10 +209,19 @@ def _cached_get_actions(state_json: str) -> List[Action]:
 
     actions: list[dict] = []
     # всегда доступное
-    actions.append({"action_id": 0, "action_type": "end_turn", "params": {}, "description": all_turns_ever["End turn"]})
+    actions.append(
+        {
+            "action_id": 0,
+            "action_type": "end_turn",
+            "params": {},
+            "description": all_turns_ever["End turn"],
+        }
+    )
     action_id = 1
 
-    territories = [t for t in gc.field.territory_manager.territories if t.owner == current_player]
+    territories = [
+        t for t in gc.field.territory_manager.territories if t.owner == current_player
+    ]
     for territory in territories:
         for y, x in territory.tiles:
             cell = gc.field.cells[(y, x)]
@@ -207,7 +230,11 @@ def _cached_get_actions(state_json: str) -> List[Action]:
                 # build farm
                 try:
                     if gc.field.has_farm_or_base_neigbour((y, x)):
-                        num_farms = sum(1 for p in territory.tiles if gc.field.cells[p].entity == EntityType.FARM)
+                        num_farms = sum(
+                            1
+                            for p in territory.tiles
+                            if gc.field.cells[p].entity == EntityType.FARM
+                        )
                         cost = 12 + 2 * num_farms
                         if territory.funds >= cost:
                             actions.append(
@@ -215,7 +242,9 @@ def _cached_get_actions(state_json: str) -> List[Action]:
                                     "action_id": action_id,
                                     "action_type": "build_action",
                                     "params": {"x": x, "y": y, "building": "farm"},
-                                    "description": all_turns_ever[f"Build farm at ({y},{x})"],
+                                    "description": all_turns_ever[
+                                        f"Build farm at ({y},{x})"
+                                    ],
                                 }
                             )
                             action_id += 1
@@ -254,7 +283,9 @@ def _cached_get_actions(state_json: str) -> List[Action]:
                                 "action_id": action_id,
                                 "action_type": "spawn_unit",
                                 "params": {"x": x, "y": y, "level": lvl},
-                                "description": all_turns_ever[f"Spawn lvl {lvl} unit at ({y},{x})"],
+                                "description": all_turns_ever[
+                                    f"Spawn lvl {lvl} unit at ({y},{x})"
+                                ],
                             }
                         )
                         action_id += 1
@@ -268,8 +299,15 @@ def _cached_get_actions(state_json: str) -> List[Action]:
                             {
                                 "action_id": action_id,
                                 "action_type": "move_unit",
-                                "params": {"from_x": x, "from_y": y, "to_x": m["x"], "to_y": m["y"]},
-                                "description": all_turns_ever[f"Move from ({y},{x}) to ({m['y']},{m['x']})"],
+                                "params": {
+                                    "from_x": x,
+                                    "from_y": y,
+                                    "to_x": m["x"],
+                                    "to_y": m["y"],
+                                },
+                                "description": all_turns_ever[
+                                    f"Move from ({y},{x}) to ({m['y']},{m['x']})"
+                                ],
                             }
                         )
                         action_id += 1
@@ -286,7 +324,11 @@ def _cached_get_actions(state_json: str) -> List[Action]:
 
 @functools.lru_cache(maxsize=500)
 def _cached_apply_action(
-    state_json: str, action_id: Optional[int], action_type: Optional[str], params_json: str, description: Optional[str]
+    state_json: str,
+    action_id: Optional[int],
+    action_type: Optional[str],
+    params_json: str,
+    description: Optional[str],
 ) -> ApplyActionResponse:
 
     # Собираем запрос в словарь и конструируем Pydantic-модель
@@ -307,7 +349,9 @@ def _cached_apply_action(
         act_list = _cached_get_actions(req.state.json())
         act = next((x for x in act_list if x.action_id == req.action_id), None)
         if act is None:
-            raise HTTPException(status_code=400, detail=f"Action {req.action_id} not found")
+            raise HTTPException(
+                status_code=400, detail=f"Action {req.action_id} not found"
+            )
         action_type, params = act.action_type, act.params or {}
     else:
         if not req.action_type:
@@ -315,7 +359,9 @@ def _cached_apply_action(
         action_type, params = req.action_type, req.params or {}
 
     # Применяем ход
-    result = gc.process_message({"type": action_type, "payload": params}, current_player)
+    result = gc.process_message(
+        {"type": action_type, "payload": params}, current_player
+    )
     if not result:
         raise HTTPException(status_code=400, detail="Invalid action")
 
@@ -324,7 +370,10 @@ def _cached_apply_action(
 
     # Собираем новый GameState
     fd = gc.field.to_dict()
-    td = [{"owner": t.owner, "funds": t.funds, "tiles": list(t.tiles)} for t in gc.field.territory_manager.territories]
+    td = [
+        {"owner": t.owner, "funds": t.funds, "tiles": list(t.tiles)}
+        for t in gc.field.territory_manager.territories
+    ]
     new_state = GameState(
         players=gc.players,
         current_player_index=gc._current_player_index,
@@ -340,13 +389,15 @@ def _cached_apply_action(
 
 
 # 1. Генерация нового состояния
-@app.post("/generate_state",
-           response_model=GameState,
-           summary="Генерация нового состояния игры")
+@app.post(
+    "/generate_state",
+    response_model=GameState,
+    summary="Генерация нового состояния игры",
+)
 def generate_state(num_players: int = 2, random: bool = False):
     """Создает новую игру и возвращает ее состояние"""
     try:
-        if (not random):
+        if not random:
             with open("static/map_basic_small.json", "r") as f:
                 return json.load(f)
             # with open("static/map_basic_10x10.json", "r") as f:
@@ -364,7 +415,11 @@ def generate_state(num_players: int = 2, random: bool = False):
         territories_data = []
         for territory in gc.field.territory_manager.territories:
             territories_data.append(
-                {"owner": territory.owner, "funds": territory.funds, "tiles": list(territory.tiles)}
+                {
+                    "owner": territory.owner,
+                    "funds": territory.funds,
+                    "tiles": list(territory.tiles),
+                }
             )
 
         # Создаем объект состояния
@@ -378,7 +433,9 @@ def generate_state(num_players: int = 2, random: bool = False):
         return state
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to generate game state: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to generate game state: {str(e)}"
+        )
 
 
 # Создание объекта GameController из состояния
@@ -422,12 +479,14 @@ def reconstruct_game(state: GameState) -> GameController:
         base_key = None
         for i, j in territory_tiles:
             if (i, j) in bases:
-                base_key = (i, j)        
+                base_key = (i, j)
 
         owner = territory_data.owner
         funds = territory_data.funds
 
-        territory = Territory(owner=owner, field=gc.field, base_key=base_key, funds=funds)
+        territory = Territory(
+            owner=owner, field=gc.field, base_key=base_key, funds=funds
+        )
         territory.tiles = set([tuple(i) for i in territory_tiles])
         territories.append(territory)
     gc.field.territory_manager = TerritoryManager(gc.field, territories)
@@ -444,7 +503,13 @@ def get_actions_endpoint(state: GameState):
 def apply_action_endpoint(request: ActionRequest):
     state_json = request.state.model_dump_json()
     params_json = json.dumps(request.params or {}, sort_keys=True)
-    return _cached_apply_action(state_json, request.action_id, request.action_type, params_json, request.description)
+    return _cached_apply_action(
+        state_json,
+        request.action_id,
+        request.action_type,
+        params_json,
+        request.description,
+    )
 
 
 LOG_DIR = os.path.join(os.path.dirname(__file__), "logs")
@@ -477,7 +542,9 @@ async def get_log(filename: str):
     file_path = os.path.join(LOG_DIR, filename)
     if not os.path.isfile(file_path):
         raise HTTPException(status_code=404, detail="Log not found")
-    return FileResponse(path=file_path, media_type="application/json", filename=filename)
+    return FileResponse(
+        path=file_path, media_type="application/json", filename=filename
+    )
 
 
 if __name__ == "__main__":

@@ -13,6 +13,7 @@ from src.gamecontroller import GameController
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+
 # ======= отдаём лобби-HTML =======
 @app.get("/")
 async def get_index():
@@ -112,14 +113,13 @@ class GameConnectionManager:
         """
         self.allowed_players[room_id] = set(tokens)
 
-
     async def connect(self, room_id: str, token: str, websocket: WebSocket) -> bool:
         allowed = self.allowed_players.get(room_id)
         if not allowed or token not in allowed:
             # Этот игрок не был в одном лобби
             await websocket.close(code=1008)
-            return False 
-        
+            return False
+
         await websocket.accept()
         if room_id not in self.game_connections:
             self.game_connections[room_id] = {}
@@ -157,12 +157,14 @@ async def start_game_after_delay(room: Room):
             await asyncio.sleep(1)
 
         if room.all_ready():
-            player_names = [u['name'] for u in room.users.values()]
+            player_names = [u["name"] for u in room.users.values()]
             room.game_controller = GameController(player_names)
 
             # Засылаем сообщение о старте игры
             await lobby_manager.broadcast(room.room_id, "Игра начинается!")
-            await lobby_manager.broadcast(room.room_id, json.dumps({"type": "game_start"}))
+            await lobby_manager.broadcast(
+                room.room_id, json.dumps({"type": "game_start"})
+            )
 
             # Разрешим этим токенам подключаться к /ws/game/<room_id>:
             tokens = list(room.users.keys())  # Все из комнаты
@@ -196,7 +198,9 @@ def create_room():
 
 
 @app.post("/join_room")
-def join_room(room_id: str = Query(...), token: str = Query(...), name: str = Query(...)):
+def join_room(
+    room_id: str = Query(...), token: str = Query(...), name: str = Query(...)
+):
     if room_id not in rooms:
         raise HTTPException(status_code=404, detail="Комната не найдена")
     room = rooms[room_id]
@@ -227,8 +231,13 @@ async def lobby_ws_endpoint(websocket: WebSocket, room_id: str, token: str):
     # Подключаем к лобби
     await lobby_manager.connect(room_id, websocket)
     # Обновим список игроков
-    await lobby_manager.broadcast(room_id, json.dumps({"type": "players_update", "players": room.get_players_list()}))
-    await lobby_manager.broadcast(room_id, f"Система: {room.users[token]['name']} присоединился к комнате")
+    await lobby_manager.broadcast(
+        room_id,
+        json.dumps({"type": "players_update", "players": room.get_players_list()}),
+    )
+    await lobby_manager.broadcast(
+        room_id, f"Система: {room.users[token]['name']} присоединился к комнате"
+    )
 
     try:
         while True:
@@ -237,14 +246,20 @@ async def lobby_ws_endpoint(websocket: WebSocket, room_id: str, token: str):
             if data == "READY":
                 room.set_ready(token, True)
                 await lobby_manager.broadcast(
-                    room_id, json.dumps({"type": "players_update", "players": room.get_players_list()})
+                    room_id,
+                    json.dumps(
+                        {"type": "players_update", "players": room.get_players_list()}
+                    ),
                 )
                 await check_game_start(room)
 
             elif data == "NOT_READY":
                 room.set_ready(token, False)
                 await lobby_manager.broadcast(
-                    room_id, json.dumps({"type": "players_update", "players": room.get_players_list()})
+                    room_id,
+                    json.dumps(
+                        {"type": "players_update", "players": room.get_players_list()}
+                    ),
                 )
                 await check_game_start(room)
 
@@ -260,7 +275,8 @@ async def lobby_ws_endpoint(websocket: WebSocket, room_id: str, token: str):
         room.remove_user(token)
 
         await lobby_manager.broadcast(
-            room_id, json.dumps({"type": "players_update", "players": room.get_players_list()})
+            room_id,
+            json.dumps({"type": "players_update", "players": room.get_players_list()}),
         )
         await lobby_manager.broadcast(room_id, f"Система: {username} покинул комнату")
         await check_game_start(room)
@@ -268,24 +284,28 @@ async def lobby_ws_endpoint(websocket: WebSocket, room_id: str, token: str):
 
 # ============== game WebSocket ==============
 @app.websocket("/ws/game/{room_id}/{token}/{username}")
-async def game_ws_endpoint(websocket: WebSocket, room_id: str, token: str, username: str):
+async def game_ws_endpoint(
+    websocket: WebSocket, room_id: str, token: str, username: str
+):
     # Если token не в allowed_players[room_id], не подключаем.
     connected_ok = await game_manager.connect(room_id, token, websocket)
 
     if not connected_ok:
         return
-    
+
     # Если всё ок, значит пользователь правильный
     if not token in game_manager.allowed_players[room_id]:
         await websocket.close(code=1008)
     room = rooms.get(room_id)
 
     initial_state = {
-            "type": "game_state_update",
-            "players": room.game_controller.players,
-            "field": room.game_controller.field.to_dict(),
-            "current_player": room.game_controller.players[room.game_controller._current_player_index],
-        }
+        "type": "game_state_update",
+        "players": room.game_controller.players,
+        "field": room.game_controller.field.to_dict(),
+        "current_player": room.game_controller.players[
+            room.game_controller._current_player_index
+        ],
+    }
     await game_manager.send_personal_message(room_id, token, json.dumps(initial_state))
 
     try:
@@ -297,20 +317,22 @@ async def game_ws_endpoint(websocket: WebSocket, room_id: str, token: str, usern
             except:
                 continue
 
-
             try:
                 # Передаем сообщение на обработку в game_controller
                 # Он вернет dict с обновлением стейта игры, который нужно разослать игрокам
                 result = room.game_controller.process_message(message, username)
             except Exception as e:
-                await websocket.send_text(json.dumps({"type": "error", "message": str(e)}))
+                await websocket.send_text(
+                    json.dumps({"type": "error", "message": str(e)})
+                )
                 continue
-
 
             if result:
                 if result["type"] == "available_moves":
                     # Отправка только запрашивающему
-                    await game_manager.send_personal_message(room_id, token, json.dumps(result))
+                    await game_manager.send_personal_message(
+                        room_id, token, json.dumps(result)
+                    )
 
                 elif result["type"] == "game_over":
                     new_lobby_id = uuid.uuid4().hex[:6].upper()

@@ -145,7 +145,12 @@ PROTECTSFROMUNIT1 = [*PROTECTSFROMUNIT2, EntityType.UNIT1, EntityType.BASE]
 ALLOWEDFORUNIT1 = [EntityType.EMPTY, EntityType.FARM]
 ALLOWEDFORUNIT2 = [*ALLOWEDFORUNIT1, EntityType.UNIT1, EntityType.BASE]
 ALLOWEDFORUNIT3 = [*ALLOWEDFORUNIT2, EntityType.UNIT2, EntityType.WEAK_TOWER]
-ALLOWEDFORUNIT4 = [*ALLOWEDFORUNIT3, EntityType.UNIT3, EntityType.UNIT4, EntityType.STRONG_TOWER]
+ALLOWEDFORUNIT4 = [
+    *ALLOWEDFORUNIT3,
+    EntityType.UNIT3,
+    EntityType.UNIT4,
+    EntityType.STRONG_TOWER,
+]
 
 
 # Максимальная глубина хода юнита (радиус)
@@ -199,12 +204,14 @@ def get_unit_type_by_level(level: int) -> EntityType:
     raise ValueError(f"Invalid unit level {level}")
 
 
-class Cell():
+class Cell:
     def __init__(self):
         self.owner: Optional[str] = None
         self.entity: EntityType = EntityType.EMPTY
         self.has_moved: bool = False
-        self.base_cell: Optional[Tuple[int, int]] = None   # ref to Base cell. Base cell references to base cell
+        self.base_cell: Optional[Tuple[int, int]] = (
+            None  # ref to Base cell. Base cell references to base cell
+        )
 
 
 class Field:
@@ -213,6 +220,7 @@ class Field:
     Содержит логику генерации/инициализации, а также методы для
     постройки, спавна и перемещения юнитов, завершения хода и др.
     """
+
     def __init__(self, height, width, owners: List[str]):
         """
         Создаёт поле (height x width), затем пытается расставить базы для всех игроков owners.
@@ -263,7 +271,7 @@ class Field:
         Возвращает список соседних клеток (координаты i,j) для шестиугольной сетки
         """
         if cell_key not in self.cells:
-            raise ValueError(f'cell {cell_key} does not exist')
+            raise ValueError(f"cell {cell_key} does not exist")
 
         i, j = cell_key
 
@@ -272,7 +280,9 @@ class Field:
 
         directions = odd_offsets if j % 2 == 0 else even_offsets
 
-        return [(i + di, j + dj) for di, dj in directions if (i + di, j + dj) in self.cells]
+        return [
+            (i + di, j + dj) for di, dj in directions if (i + di, j + dj) in self.cells
+        ]
 
     def get_distance_bfs(self, start: Tuple[int, int], end: Tuple[int, int]) -> int:
         """
@@ -286,7 +296,7 @@ class Field:
             return 0
 
         queue = deque([(start, 0)])  # Очередь BFS (кортеж: (клетка, шаги))
-        visited = set([start])       # Посещенные клетки
+        visited = set([start])  # Посещенные клетки
 
         while queue:
             current, steps = queue.popleft()
@@ -326,7 +336,9 @@ class Field:
         Возвращает True при успехе, иначе False.
         """
         # Фильтруем клетки, которые еще не заняты (owner is None)
-        free_cells = [cell_key for cell_key in self.cells if self.cells[cell_key].owner is None]
+        free_cells = [
+            cell_key for cell_key in self.cells if self.cells[cell_key].owner is None
+        ]
         if not free_cells:
             return False  # Нет свободных клеток для создания базы
 
@@ -339,7 +351,8 @@ class Field:
 
         # Инициализируем frontier только незанятыми соседями стартовой клетки
         frontier: Set[Tuple[int, int]] = set(
-            neighbor for neighbor in self.get_neighbours(start_cell_key)
+            neighbor
+            for neighbor in self.get_neighbours(start_cell_key)
             if self.cells[neighbor].owner is None
         )
 
@@ -357,7 +370,10 @@ class Field:
                 new_frontier: Set[Tuple[int, int]] = set()
                 for cell in base_cells:
                     for neighbor in self.get_neighbours(cell):
-                        if neighbor not in base_cells and self.cells[neighbor].owner is None:
+                        if (
+                            neighbor not in base_cells
+                            and self.cells[neighbor].owner is None
+                        ):
                             new_frontier.add(neighbor)
                 if not new_frontier:
                     return False  # Расширить базу не удалось
@@ -433,7 +449,12 @@ class Field:
                 return True
 
             # Если там уже стоит дружественный юнит, пробуем merge
-            if cell.entity in (EntityType.UNIT1, EntityType.UNIT2, EntityType.UNIT3, EntityType.UNIT4):
+            if cell.entity in (
+                EntityType.UNIT1,
+                EntityType.UNIT2,
+                EntityType.UNIT3,
+                EntityType.UNIT4,
+            ):
                 moving_unit_level = get_unit_level(unit_type)
                 target_unit_level = get_unit_level(cell.entity)
                 if moving_unit_level + target_unit_level <= 4:
@@ -460,7 +481,9 @@ class Field:
 
             # Клетка не должна быть защищена от UNIT1
             for nb in neighbors:
-                if (self.cells[nb].owner != moving_owner and (self.cells[nb].entity in PROTECTSFROMUNIT1)):
+                if self.cells[nb].owner != moving_owner and (
+                    self.cells[nb].entity in PROTECTSFROMUNIT1
+                ):
                     return False
             return True
 
@@ -470,7 +493,10 @@ class Field:
             # Клетка не должна быть защищена от UNIT2
             for nb in neighbors:
                 nb_cell = self.cells[nb]
-                if nb_cell.owner != moving_owner and nb_cell.entity in PROTECTSFROMUNIT2:
+                if (
+                    nb_cell.owner != moving_owner
+                    and nb_cell.entity in PROTECTSFROMUNIT2
+                ):
                     return False
             return True
 
@@ -480,7 +506,10 @@ class Field:
             # Клетка не должна быть защищена от UNIT3
             for nb in neighbors:
                 nb_cell = self.cells[nb]
-                if nb_cell.owner != moving_owner and nb_cell.entity in PROTECTSFROMUNIT3:
+                if (
+                    nb_cell.owner != moving_owner
+                    and nb_cell.entity in PROTECTSFROMUNIT3
+                ):
                     return False
             return True
 
@@ -497,7 +526,10 @@ class Field:
         cell = self.cells[cell_key]
         neighbors = self.get_neighbours(cell_key)
         for nb in neighbors:
-            if (self.cells[nb].owner == cell.owner and self.cells[nb].entity in [EntityType.BASE, EntityType.FARM]):
+            if self.cells[nb].owner == cell.owner and self.cells[nb].entity in [
+                EntityType.BASE,
+                EntityType.FARM,
+            ]:
                 return True
         return False
 
@@ -510,14 +542,20 @@ class Field:
         """
         # Формируем информацию о клетках
         cells_dict = {
-            f"{i},{j}": {"owner": cell.owner, "entity": cell.entity.value, "has_moved": cell.has_moved} 
+            f"{i},{j}": {
+                "owner": cell.owner,
+                "entity": cell.entity.value,
+                "has_moved": cell.has_moved,
+            }
             for (i, j), cell in self.cells.items()
         }
 
         # Группируем территории по владельцам
         territory_info = {}
         for territory in self.territory_manager.territories:
-            territory_income = self.territory_manager.calculate_income_for_territory(territory)
+            territory_income = self.territory_manager.calculate_income_for_territory(
+                territory
+            )
             info_str = (
                 f"territory {len(territory.tiles)} tiles, "
                 f"{territory.funds} funds, "
@@ -526,13 +564,15 @@ class Field:
             territory_info.setdefault(territory.owner, []).append(info_str)
 
         # Преобразуем в список словарей, где каждый словарь имеет вид {player_name: [info_str, ...]}
-        territories_list = [{owner: info_list} for owner, info_list in territory_info.items()]
+        territories_list = [
+            {owner: info_list} for owner, info_list in territory_info.items()
+        ]
 
         return {
             "height": self.height,
             "width": self.width,
             "cells": cells_dict,
-            "territories": territories_list
+            "territories": territories_list,
         }
 
     def get_territory_for_cell(self, cell_key: Tuple[int, int], player_name: str):
@@ -579,7 +619,8 @@ class Field:
         if building.lower() == "farm":
             # Стоимость фермы = 12 + (колво ферм)
             num_farms = sum(
-                1 for pos in territory.tiles
+                1
+                for pos in territory.tiles
                 if self.cells[pos].entity == EntityType.FARM
             )
             cost = 12 + 2 * num_farms
@@ -597,7 +638,9 @@ class Field:
             cost = COST_WEAK_TOWER
             territory = self.get_territory_for_cell(key, player_name)
             if territory.funds < cost:
-                raise Exception("Not enough funds in your territory to build a weak tower")
+                raise Exception(
+                    "Not enough funds in your territory to build a weak tower"
+                )
             territory.funds -= cost
             cell.entity = EntityType.WEAK_TOWER
 
@@ -605,7 +648,9 @@ class Field:
             cost = COST_STRONG_TOWER
             territory = self.get_territory_for_cell(key, player_name)
             if territory.funds < cost:
-                raise Exception("Not enough funds in your territory to build a strong tower")
+                raise Exception(
+                    "Not enough funds in your territory to build a strong tower"
+                )
             territory.funds -= cost
             cell.entity = EntityType.STRONG_TOWER
 
@@ -658,7 +703,9 @@ class Field:
         cell.has_moved = True
         territory.funds -= cost
 
-    def move_unit(self, from_x: int, from_y: int, to_x: int, to_y: int, player_name: str):
+    def move_unit(
+        self, from_x: int, from_y: int, to_x: int, to_y: int, player_name: str
+    ):
         """
         Перемещает юнита из клетки (from_y, from_x) в клетку (to_y, to_x).
         Проверяет:
@@ -724,7 +771,9 @@ class Field:
         # self.territory_manager.update_territories()
 
         # Проверяем условие победы: если на поле присутствует только один владелец клеток, он выигрывает.
-        owners_present = {t.owner for t in self.territory_manager.territories if t.owner is not None}
+        owners_present = {
+            t.owner for t in self.territory_manager.territories if t.owner is not None
+        }
         if len(owners_present) == 1:
             return owners_present.pop()
 
@@ -742,7 +791,9 @@ class Field:
             None: Если игра не завершена (территории у нескольких игроков или нет территорий вообще)
         """
         # Собираем уникальных владельцев территорий (исключаем None)
-        owners_present = {t.owner for t in self.territory_manager.territories if t.owner is not None}
+        owners_present = {
+            t.owner for t in self.territory_manager.territories if t.owner is not None
+        }
         print(owners_present)
         # Если остался только один владелец территорий - он победил
         if len(owners_present) == 1:
@@ -758,6 +809,7 @@ class Territory:
     Имеет базовую клетку (base_key), funds, владелец owner,
     а также набор клеток tiles.
     """
+
     def __init__(self, owner: str, field: Field, base_key: Tuple[int, int], funds=0):
         """
         Инициализирует территорию, вычисляет её компоненту связности (tiles)
@@ -766,11 +818,13 @@ class Territory:
         self.owner: str = owner
         self.funds: int = funds
         self.field: Field = field
-        self.base_key: Tuple[int, int]= base_key
+        self.base_key: Tuple[int, int] = base_key
         self.tiles: Set[Tuple[int, int]] = set()
         self.tiles = self.get_territory_component(self.base_key)
 
-    def get_territory_component(self, base_key: Tuple[int, int]) -> Set[Tuple[int, int]]:
+    def get_territory_component(
+        self, base_key: Tuple[int, int]
+    ) -> Set[Tuple[int, int]]:
         """
         Находит все клетки, принадлежащие тому же владельцу, что и base_key,
         и достижимые через соседей. Возвращает их в виде множества.
@@ -800,7 +854,10 @@ class Territory:
         Пересчитывает set клеток (tiles) на случай, если территория расширилась или уменьшилась.
         Если базовая клетка изменила владельца, выбирается новая база случайно из списка tiles.
         """
-        if self.base_key not in self.field.cells or self.field.cells[self.base_key].owner != self.owner:
+        if (
+            self.base_key not in self.field.cells
+            or self.field.cells[self.base_key].owner != self.owner
+        ):
             if self.tiles:
                 self.base_key = random.choice(list(self.tiles))
             else:
@@ -826,10 +883,10 @@ class TerritoryManager:
     Управляет всеми территориями (список Territory).
     Позволяет обновлять территории (слияние, разделение) и пересчитывать фонды.
     """
+
     def __init__(self, field: Field, territories: List[Territory]):
         self.field = field
         self.territories = territories
-
 
     def has_territories(self, owner: str) -> bool:
         """
@@ -853,11 +910,15 @@ class TerritoryManager:
 
         for owner, old_territories in territories_by_owner.items():
             # Собираем все клетки, принадлежащие владельцу (актуальное состояние поля)
-            owner_cells = {pos for pos, cell in self.field.cells.items() if cell.owner == owner}
+            owner_cells = {
+                pos for pos, cell in self.field.cells.items() if cell.owner == owner
+            }
             # Вычисляем компоненты связности для этих клеток
             new_components = self._compute_connected_components(owner_cells)
             # Для удобства работаем с ключами-компонентами в виде frozenset
-            comp_contributions = {}  # key: frozenset(component), value: dict с суммой фондов и кандидатами для базы
+            comp_contributions = (
+                {}
+            )  # key: frozenset(component), value: dict с суммой фондов и кандидатами для базы
             comp_map = {}  # отображает ключ (frozenset) на исходное множество клеток
             for comp in new_components:
                 comp_key = frozenset(comp)
@@ -866,7 +927,9 @@ class TerritoryManager:
 
             # Для каждого старого объекта Territory определяем, в какую новую компоненту попало
             # наибольшее число его клеток. Именно эта компонента получит все его фонды.
-            territory_best_component = {}  # key: объект Territory, value: ключ (frozenset) новой компоненты
+            territory_best_component = (
+                {}
+            )  # key: объект Territory, value: ключ (frozenset) новой компоненты
             for t in old_territories:
                 best_comp_key = None
                 best_intersection = 0
@@ -910,7 +973,11 @@ class TerritoryManager:
                         if k != base_key:
                             self.field.cells[k].entity = EntityType.EMPTY
                 else:
-                    empty_cells = [cell_key for cell_key in list(comp) if self.field.cells[cell_key].entity == EntityType.EMPTY]
+                    empty_cells = [
+                        cell_key
+                        for cell_key in list(comp)
+                        if self.field.cells[cell_key].entity == EntityType.EMPTY
+                    ]
 
                     if not empty_cells:
                         # Если все клетки заняты, на базу заменяем случайную клетку
@@ -939,9 +1006,21 @@ class TerritoryManager:
             EntityType.UNIT4: 4,
         }
         captured = len(territory.tiles)
-        num_farms = sum(1 for pos in territory.tiles if self.field.cells[pos].entity == EntityType.FARM)
-        weak_towers = sum(1 for pos in territory.tiles if self.field.cells[pos].entity == EntityType.WEAK_TOWER)
-        strong_towers = sum(1 for pos in territory.tiles if self.field.cells[pos].entity == EntityType.STRONG_TOWER)
+        num_farms = sum(
+            1
+            for pos in territory.tiles
+            if self.field.cells[pos].entity == EntityType.FARM
+        )
+        weak_towers = sum(
+            1
+            for pos in territory.tiles
+            if self.field.cells[pos].entity == EntityType.WEAK_TOWER
+        )
+        strong_towers = sum(
+            1
+            for pos in territory.tiles
+            if self.field.cells[pos].entity == EntityType.STRONG_TOWER
+        )
         unit_upkeep_cost = sum(
             UNIT_UPKEEP[unit_levels[self.field.cells[pos].entity]]
             for pos in territory.tiles
@@ -955,7 +1034,9 @@ class TerritoryManager:
         )
         return income
 
-    def _compute_connected_components(self, cells: Set[Tuple[int, int]]) -> List[Set[Tuple[int, int]]]:
+    def _compute_connected_components(
+        self, cells: Set[Tuple[int, int]]
+    ) -> List[Set[Tuple[int, int]]]:
         """
         Находит компоненты связности клеток cells (принадлежащих одному владельцу).
         Возвращает список множеств клеток.
@@ -981,7 +1062,7 @@ class TerritoryManager:
 
     def update_funds(self, owner):
         """
-        Начисляет доход (income) всем территориям игрока owner 
+        Начисляет доход (income) всем территориям игрока owner
         (по формуле calculate_income_for_territory) и прибавляет его к funds.
         Если funds уходит в минус, убиваем все юниты (entity=EMPTY), funds=0.
         """

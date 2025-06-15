@@ -65,7 +65,9 @@ def initialize_game_state(width: int = 15, height: int = 15) -> GameState:
     players_names = ["player1", "player2"]
     players = [Player(name=name) for name in players_names]
     field = Field(height=height, width=width, owners=players_names)
-    return GameState(rows=height, cols=width, field=field, players=players, current_turn="player1")
+    return GameState(
+        rows=height, cols=width, field=field, players=players, current_turn="player1"
+    )
 
 
 game_state = initialize_game_state()
@@ -102,7 +104,9 @@ def spawn_unit(req: SpawnUnitRequest):
 @app.post("/move_unit")
 def move_unit(req: MoveUnitRequest):
     try:
-        game_state.field.move_unit(req.from_x, req.from_y, req.to_x, req.to_y, req.player_name)
+        game_state.field.move_unit(
+            req.from_x, req.from_y, req.to_x, req.to_y, req.player_name
+        )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"detail": "Unit moved successfully"}
@@ -123,6 +127,11 @@ def end_turn():
     winner = game_state.field.end_turn(current, game_state.players)
     if winner is not None:
         return {"detail": f"Turn ended. {winner} wins!", "current_turn": winner}
-    next_turn = next(player.name for player in game_state.players if player.name != current)
+    next_turn = next(
+        player.name for player in game_state.players if player.name != current
+    )
     game_state.current_turn = next_turn
-    return {"detail": "Turn ended successfully", "current_turn": game_state.current_turn}
+    return {
+        "detail": "Turn ended successfully",
+        "current_turn": game_state.current_turn,
+    }

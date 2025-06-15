@@ -82,7 +82,9 @@ class GameApi:
     def _inc(self):
         self.query_count += 1
 
-    def generate_state(self, num_players: int = 2, randomize: bool = False) -> GameState:
+    def generate_state(
+        self, num_players: int = 2, randomize: bool = False
+    ) -> GameState:
         self._inc()
         url = f"{self.base}/generate_state"
         r = self.session.post(
@@ -140,7 +142,12 @@ class GameApi:
 
 
 class MCTSNode:
-    def __init__(self, state: GameState, parent: Optional["MCTSNode"] = None, action: Optional[Action] = None):
+    def __init__(
+        self,
+        state: GameState,
+        parent: Optional["MCTSNode"] = None,
+        action: Optional[Action] = None,
+    ):
         self.state = state
         self.parent = parent
         self.action = action
@@ -154,7 +161,6 @@ class MCTSNode:
         with self.lock:
             return self.untried_actions is not None and not self.untried_actions
 
-
     def best_uct_child(self, c: float) -> "MCTSNode":
         with self.lock:
             if not self.children:
@@ -163,7 +169,9 @@ class MCTSNode:
             def uct_score(child):
                 if child.visits == 0:
                     return float("inf")  # Приоритет для непосещённых узлов
-                return (child.value / child.visits) + c * math.sqrt(math.log(self.visits) / child.visits)
+                return (child.value / child.visits) + c * math.sqrt(
+                    math.log(self.visits) / child.visits
+                )
 
             return max(self.children, key=uct_score)
 
@@ -178,7 +186,13 @@ class MCTSNode:
 
 class MCTSPlayer:
     def __init__(
-        self, player_id: str, game_api: GameApi, c: float = math.sqrt(2), max_depth: int = 200, workers: int = 1, iterations: int = 100
+        self,
+        player_id: str,
+        game_api: GameApi,
+        c: float = math.sqrt(2),
+        max_depth: int = 200,
+        workers: int = 1,
+        iterations: int = 100,
     ):
         self.player_id = player_id
         self.game = game_api
@@ -218,13 +232,18 @@ class MCTSPlayer:
             # 3) удаляем и возвращаем последний — pop()
             action = actions.pop()
 
-            if action.action_type == "end_turn" and node.state.current_player_index == 1:
+            if (
+                action.action_type == "end_turn"
+                and node.state.current_player_index == 1
+            ):
                 pass
                 # print('debug: end_turn')
 
             res = self.game.apply_action(node.state, action)
             child = MCTSNode(res.state, parent=node, action=action)
-            child.untried_actions = self.game.get_actions(res.state)  # Сразу загружаем действия
+            child.untried_actions = self.game.get_actions(
+                res.state
+            )  # Сразу загружаем действия
             node.children.append(child)
             return child
 
@@ -250,7 +269,9 @@ class MCTSPlayer:
         cells = state.field_data.cells
         total = len(cells)
         my_cells = sum(1 for c in cells.values() if c.owner == self.player_id)
-        opp_cells = sum(1 for c in cells.values() if c.owner and c.owner != self.player_id)
+        opp_cells = sum(
+            1 for c in cells.values() if c.owner and c.owner != self.player_id
+        )
 
         # Увеличиваем вес в 10 раз, чтобы охотнее захватывало клетки
         return (my_cells - opp_cells) / max(1, total)
@@ -288,11 +309,13 @@ class MCTSPlayer:
         # 4. Распространение
         self._backpropagate(node, reward)
 
-    def search(self, iterations: int, show_progress: bool = False, desc: str = "MCTS") -> Action:
+    def search(
+        self, iterations: int, show_progress: bool = False, desc: str = "MCTS"
+    ) -> Action:
         """Выполняет поиск лучшего хода"""
         if not self.root:
             raise ValueError("MCTS дерево не инициализировано")
-        
+
         iterations = self.iterations
 
         print(f"Searching for state {self.root.state.model_dump_json()}")
@@ -310,7 +333,9 @@ class MCTSPlayer:
             iterations_per_worker = iterations
 
             # Так как боттлнек в игровом движке (который дергается через API), то можно запускать несколько потоков
-            with concurrent.futures.ThreadPoolExecutor(max_workers=self.workers) as executor:
+            with concurrent.futures.ThreadPoolExecutor(
+                max_workers=self.workers
+            ) as executor:
                 futures = []
 
                 for i in range(iterations_per_worker):
@@ -321,7 +346,13 @@ class MCTSPlayer:
                         elapsed = time.time() - start_time
                         queries_done = self.game.query_count - start_queries
                         qps = queries_done / elapsed if elapsed > 0 else 0
-                        pbar.set_postfix({"iter": i + 1, "queries": queries_done, "QPS": f"{qps:.1f}"})
+                        pbar.set_postfix(
+                            {
+                                "iter": i + 1,
+                                "queries": queries_done,
+                                "QPS": f"{qps:.1f}",
+                            }
+                        )
                         pbar.update(1)
         else:
             for i in range(iterations):
@@ -331,7 +362,9 @@ class MCTSPlayer:
                     elapsed = time.time() - start_time
                     queries_done = self.game.query_count - start_queries
                     qps = queries_done / elapsed if elapsed > 0 else 0
-                    pbar.set_postfix({"iter": i + 1, "queries": queries_done, "QPS": f"{qps:.1f}"})
+                    pbar.set_postfix(
+                        {"iter": i + 1, "queries": queries_done, "QPS": f"{qps:.1f}"}
+                    )
                     pbar.update(1)
 
         if show_progress:
@@ -345,8 +378,8 @@ class MCTSPlayer:
         sort_by_value = sorted(self.root.children, key=lambda x: x.value)
         best_value_child = max(sort_by_value, key=lambda x: x.value)
 
-        #self.root = best_value_child
-        #self.root.parent = None 
+        # self.root = best_value_child
+        # self.root.parent = None
 
         return best_value_child.action
 
@@ -408,15 +441,29 @@ def simulate_game(
     print(f"Log file: {log_path}")
 
     state = api.generate_state(num_players=2, randomize=False)
-    #override_json_str = '{"players":["player_0","player_1"],"current_player_index":0,"field_data":{"height":12,"width":12,"cells":{"2,2":{"owner":"player_0","entity":"base","has_moved":false},"2,3":{"owner":"player_1","entity":"weakTower","has_moved":false},"2,4":{"owner":"player_0","entity":"weakTower","has_moved":false},"2,5":{"owner":"player_0","entity":"empty","has_moved":false},"2,7":{"owner":"player_0","entity":"empty","has_moved":false},"2,8":{"owner":"player_0","entity":"empty","has_moved":false},"2,9":{"owner":"player_0","entity":"empty","has_moved":false},"3,2":{"owner":"player_0","entity":"farm","has_moved":false},"3,3":{"owner":"player_1","entity":"base","has_moved":false},"3,4":{"owner":"player_0","entity":"empty","has_moved":false},"3,5":{"owner":"player_0","entity":"weakTower","has_moved":false},"3,7":{"owner":"player_0","entity":"empty","has_moved":false},"3,8":{"owner":"player_0","entity":"empty","has_moved":false},"3,9":{"owner":"player_0","entity":"farm","has_moved":false},"4,2":{"owner":"player_0","entity":"unit2","has_moved":true},"4,3":{"owner":"player_0","entity":"empty","has_moved":false},"4,4":{"owner":"player_0","entity":"empty","has_moved":false},"4,5":{"owner":"player_0","entity":"weakTower","has_moved":false},"4,6":{"owner":"player_0","entity":"empty","has_moved":false},"4,7":{"owner":"player_0","entity":"empty","has_moved":false},"4,8":{"owner":"player_0","entity":"farm","has_moved":false},"4,9":{"owner":"player_0","entity":"empty","has_moved":false},"4,10":{"owner":"player_0","entity":"farm","has_moved":false},"5,4":{"owner":"player_1","entity":"base","has_moved":false},"5,6":{"owner":"player_0","entity":"unit1","has_moved":false},"6,3":{"owner":"player_1","entity":"empty","has_moved":false},"6,4":{"owner":"player_1","entity":"weakTower","has_moved":false},"6,5":{"owner":"player_1","entity":"empty","has_moved":false},"6,6":{"owner":"player_1","entity":"unit1","has_moved":false},"7,3":{"owner":"player_1","entity":"empty","has_moved":false},"7,4":{"owner":"player_1","entity":"farm","has_moved":false},"7,5":{"owner":"player_1","entity":"weakTower","has_moved":false},"7,6":{"owner":"player_1","entity":"empty","has_moved":false},"7,7":{"owner":"player_1","entity":"empty","has_moved":false},"7,8":{"owner":"player_1","entity":"empty","has_moved":false},"7,9":{"owner":"player_1","entity":"unit3","has_moved":false},"8,3":{"owner":"player_1","entity":"farm","has_moved":false},"8,4":{"owner":"player_1","entity":"empty","has_moved":false},"8,5":{"owner":"player_1","entity":"unit1","has_moved":false},"8,6":{"owner":"player_1","entity":"empty","has_moved":false},"8,8":{"owner":"player_1","entity":"empty","has_moved":false},"8,9":{"owner":"player_1","entity":"unit1","has_moved":false},"9,8":{"owner":"player_0","entity":"empty","has_moved":false},"9,9":{"owner":"player_0","entity":"unit1","has_moved":false},"9,10":{"owner":"player_0","entity":"base","has_moved":false}},"territories":[{"player_0":["territory 22 tiles, 5 funds, +29 income","territory 3 tiles, 3 funds, +1 income"]},{"player_1":["territory 18 tiles, 13 funds, +6 income","territory 2 tiles, 12 funds, +1 income"]}]},"territories_data":[{"owner":"player_0","funds":5,"tiles":[[3,4],[4,3],[4,9],[3,7],[4,6],[2,2],[2,5],[2,8],[4,2],[4,5],[3,9],[5,6],[4,8],[2,4],[2,7],[3,2],[4,7],[3,5],[4,4],[4,10],[3,8],[2,9]]},{"owner":"player_0","funds":3,"tiles":[[9,10],[9,8],[9,9]]},{"owner":"player_1","funds":13,"tiles":[[8,8],[7,4],[8,4],[7,7],[6,5],[5,4],[6,4],[7,3],[7,9],[8,3],[7,6],[8,9],[8,6],[6,6],[7,5],[6,3],[8,5],[7,8]]},{"owner":"player_1","funds":12,"tiles":[[2,3],[3,3]]}],"is_game_over":false,"winner":null,"last_action":null}'
-    #state = GameState.parse_raw(override_json_str)
+    # override_json_str = '{"players":["player_0","player_1"],"current_player_index":0,"field_data":{"height":12,"width":12,"cells":{"2,2":{"owner":"player_0","entity":"base","has_moved":false},"2,3":{"owner":"player_1","entity":"weakTower","has_moved":false},"2,4":{"owner":"player_0","entity":"weakTower","has_moved":false},"2,5":{"owner":"player_0","entity":"empty","has_moved":false},"2,7":{"owner":"player_0","entity":"empty","has_moved":false},"2,8":{"owner":"player_0","entity":"empty","has_moved":false},"2,9":{"owner":"player_0","entity":"empty","has_moved":false},"3,2":{"owner":"player_0","entity":"farm","has_moved":false},"3,3":{"owner":"player_1","entity":"base","has_moved":false},"3,4":{"owner":"player_0","entity":"empty","has_moved":false},"3,5":{"owner":"player_0","entity":"weakTower","has_moved":false},"3,7":{"owner":"player_0","entity":"empty","has_moved":false},"3,8":{"owner":"player_0","entity":"empty","has_moved":false},"3,9":{"owner":"player_0","entity":"farm","has_moved":false},"4,2":{"owner":"player_0","entity":"unit2","has_moved":true},"4,3":{"owner":"player_0","entity":"empty","has_moved":false},"4,4":{"owner":"player_0","entity":"empty","has_moved":false},"4,5":{"owner":"player_0","entity":"weakTower","has_moved":false},"4,6":{"owner":"player_0","entity":"empty","has_moved":false},"4,7":{"owner":"player_0","entity":"empty","has_moved":false},"4,8":{"owner":"player_0","entity":"farm","has_moved":false},"4,9":{"owner":"player_0","entity":"empty","has_moved":false},"4,10":{"owner":"player_0","entity":"farm","has_moved":false},"5,4":{"owner":"player_1","entity":"base","has_moved":false},"5,6":{"owner":"player_0","entity":"unit1","has_moved":false},"6,3":{"owner":"player_1","entity":"empty","has_moved":false},"6,4":{"owner":"player_1","entity":"weakTower","has_moved":false},"6,5":{"owner":"player_1","entity":"empty","has_moved":false},"6,6":{"owner":"player_1","entity":"unit1","has_moved":false},"7,3":{"owner":"player_1","entity":"empty","has_moved":false},"7,4":{"owner":"player_1","entity":"farm","has_moved":false},"7,5":{"owner":"player_1","entity":"weakTower","has_moved":false},"7,6":{"owner":"player_1","entity":"empty","has_moved":false},"7,7":{"owner":"player_1","entity":"empty","has_moved":false},"7,8":{"owner":"player_1","entity":"empty","has_moved":false},"7,9":{"owner":"player_1","entity":"unit3","has_moved":false},"8,3":{"owner":"player_1","entity":"farm","has_moved":false},"8,4":{"owner":"player_1","entity":"empty","has_moved":false},"8,5":{"owner":"player_1","entity":"unit1","has_moved":false},"8,6":{"owner":"player_1","entity":"empty","has_moved":false},"8,8":{"owner":"player_1","entity":"empty","has_moved":false},"8,9":{"owner":"player_1","entity":"unit1","has_moved":false},"9,8":{"owner":"player_0","entity":"empty","has_moved":false},"9,9":{"owner":"player_0","entity":"unit1","has_moved":false},"9,10":{"owner":"player_0","entity":"base","has_moved":false}},"territories":[{"player_0":["territory 22 tiles, 5 funds, +29 income","territory 3 tiles, 3 funds, +1 income"]},{"player_1":["territory 18 tiles, 13 funds, +6 income","territory 2 tiles, 12 funds, +1 income"]}]},"territories_data":[{"owner":"player_0","funds":5,"tiles":[[3,4],[4,3],[4,9],[3,7],[4,6],[2,2],[2,5],[2,8],[4,2],[4,5],[3,9],[5,6],[4,8],[2,4],[2,7],[3,2],[4,7],[3,5],[4,4],[4,10],[3,8],[2,9]]},{"owner":"player_0","funds":3,"tiles":[[9,10],[9,8],[9,9]]},{"owner":"player_1","funds":13,"tiles":[[8,8],[7,4],[8,4],[7,7],[6,5],[5,4],[6,4],[7,3],[7,9],[8,3],[7,6],[8,9],[8,6],[6,6],[7,5],[6,3],[8,5],[7,8]]},{"owner":"player_1","funds":12,"tiles":[[2,3],[3,3]]}],"is_game_over":false,"winner":null,"last_action":null}'
+    # state = GameState.parse_raw(override_json_str)
 
     # Записываем начальное состояние в лог
     with open(log_path, "a", encoding="utf-8") as log_file:
         log_file.write(json.dumps(state.model_dump(), ensure_ascii=False) + "\n")
 
-    player1 = MCTSPlayer(player_id=state.players[0], game_api=api, c=c, max_depth=max_depth, workers=workers, iterations=mcts_iters)
-    player2 = MCTSPlayer(player_id=state.players[1], game_api=api, c=c, max_depth=max_depth, workers=workers, iterations=mcts_iters)
+    player1 = MCTSPlayer(
+        player_id=state.players[0],
+        game_api=api,
+        c=c,
+        max_depth=max_depth,
+        workers=workers,
+        iterations=mcts_iters,
+    )
+    player2 = MCTSPlayer(
+        player_id=state.players[1],
+        game_api=api,
+        c=c,
+        max_depth=max_depth,
+        workers=workers,
+        iterations=mcts_iters,
+    )
 
     player1.initialize(state)
     player2.initialize(state)
@@ -437,7 +484,9 @@ def simulate_game(
 
         # Поиск лучшего хода
         action = active_player.search(
-            iterations=mcts_iters, show_progress=True, desc=f"Move {move_no} (Player {current_player_id})"
+            iterations=mcts_iters,
+            show_progress=True,
+            desc=f"Move {move_no} (Player {current_player_id})",
         )
 
         print(f"Selected action: {action.action_id} ({action.action_type})")
@@ -447,8 +496,12 @@ def simulate_game(
 
         history.append((move_no, current_player_id, action.action_id))
 
-        print(f"Player1 размер дерева: {len(player1.root.children) if player1.root else 0}")
-        print(f"Player2 размер дерева: {len(player2.root.children) if player2.root else 0}")
+        print(
+            f"Player1 размер дерева: {len(player1.root.children) if player1.root else 0}"
+        )
+        print(
+            f"Player2 размер дерева: {len(player2.root.children) if player2.root else 0}"
+        )
 
         player1_updated = player1.update_root(action.action_id, new_state)
         player2_updated = player2.update_root(action.action_id, new_state)

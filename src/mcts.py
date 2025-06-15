@@ -10,7 +10,12 @@ import uuid
 from typing import Any, Dict, List, Optional, Tuple
 from tqdm import tqdm
 from pydantic import BaseModel, Field
-from aiohttp import ClientOSError, ServerDisconnectedError, ClientResponseError, ClientConnectionError
+from aiohttp import (
+    ClientOSError,
+    ServerDisconnectedError,
+    ClientResponseError,
+    ClientConnectionError,
+)
 from dataclasses import dataclass
 
 
@@ -117,7 +122,9 @@ class AsyncGameApi:
             await self._inc()
             try:
                 async with self._sem:
-                    async with getattr(self._session, method)(url, params=params, json=json_data) as resp:
+                    async with getattr(self._session, method)(
+                        url, params=params, json=json_data
+                    ) as resp:
                         resp.raise_for_status()
                         return await resp.json()
 
@@ -128,7 +135,12 @@ class AsyncGameApi:
                 else:
                     raise
 
-            except (ClientOSError, ServerDisconnectedError, ClientConnectionError, asyncio.TimeoutError) as e:
+            except (
+                ClientOSError,
+                ServerDisconnectedError,
+                ClientConnectionError,
+                asyncio.TimeoutError,
+            ) as e:
                 # Сетевая ошибка или таймаут
                 err = e
 
@@ -137,14 +149,20 @@ class AsyncGameApi:
                 break
 
             # Если мы здесь, значит err установлено и нужно ретраить
-            logging.warning(f"[Attempt {attempt}] {method.upper()} {endpoint} failed: {err}")
+            logging.warning(
+                f"[Attempt {attempt}] {method.upper()} {endpoint} failed: {err}"
+            )
             if attempt == self._max_retries:
-                logging.error(f"All {attempt} retries failed for {method.upper()} {endpoint}")
+                logging.error(
+                    f"All {attempt} retries failed for {method.upper()} {endpoint}"
+                )
                 raise err
             await asyncio.sleep(backoff)
             backoff *= 2
 
-    async def generate_state(self, num_players: int = 2, randomize: bool = False) -> GameState:
+    async def generate_state(
+        self, num_players: int = 2, randomize: bool = False
+    ) -> GameState:
         data = await self._request_with_retry(
             method="post",
             endpoint="/generate_state",
@@ -160,7 +178,9 @@ class AsyncGameApi:
         )
         return [Action.model_validate(o) for o in data]
 
-    async def apply_action(self, state: GameState, action: Action) -> ApplyActionResponse:
+    async def apply_action(
+        self, state: GameState, action: Action
+    ) -> ApplyActionResponse:
         req = ActionRequest(state=state, action_id=action.action_id)
         data = await self._request_with_retry(
             method="post",
@@ -187,7 +207,12 @@ class AsyncGameApi:
 
 # MCTS Node (no locks needed with asyncio)
 class MCTSNode:
-    def __init__(self, state: GameState, parent: Optional["MCTSNode"] = None, action: Optional[Action] = None):
+    def __init__(
+        self,
+        state: GameState,
+        parent: Optional["MCTSNode"] = None,
+        action: Optional[Action] = None,
+    ):
         self.state = state
         self.parent = parent
         self.action = action
@@ -206,7 +231,9 @@ class MCTSNode:
         def uct_score(child):
             if child.visits == 0:
                 return float("inf")
-            return (child.value / child.visits) + c * math.sqrt(math.log(self.visits) / child.visits)
+            return (child.value / child.visits) + c * math.sqrt(
+                math.log(self.visits) / child.visits
+            )
 
         return max(self.children, key=uct_score)
 
@@ -281,14 +308,26 @@ class MCTSPlayer:
                 else:
                     return -3
             new_state = res.state
-            prev_owned = {key for key, cell in state.field_data.cells.items() if cell.owner == self.player_id}
-            new_owned = {key for key, cell in new_state.field_data.cells.items() if cell.owner == self.player_id}
+            prev_owned = {
+                key
+                for key, cell in state.field_data.cells.items()
+                if cell.owner == self.player_id
+            }
+            new_owned = {
+                key
+                for key, cell in new_state.field_data.cells.items()
+                if cell.owner == self.player_id
+            }
 
             opp_prev_owned = {
-                key for key, cell in state.field_data.cells.items() if cell.owner and cell.owner != self.player_id
+                key
+                for key, cell in state.field_data.cells.items()
+                if cell.owner and cell.owner != self.player_id
             }
             opp_new_owned = {
-                key for key, cell in new_state.field_data.cells.items() if cell.owner and cell.owner != self.player_id
+                key
+                for key, cell in new_state.field_data.cells.items()
+                if cell.owner and cell.owner != self.player_id
             }
 
             opponent_captured = len(opp_new_owned - opp_prev_owned)
@@ -298,9 +337,12 @@ class MCTSPlayer:
             lost = len(prev_owned - new_owned)
 
             gamma = 0.999
-            step_reward = (0.1 * captured + 0.6 * opponent_lost - 0.2 * opponent_captured - 0.6 * lost) * (
-                gamma**depth
-            )
+            step_reward = (
+                0.1 * captured
+                + 0.6 * opponent_lost
+                - 0.2 * opponent_captured
+                - 0.6 * lost
+            ) * (gamma**depth)
             total_reward += step_reward
 
             depth += 1
@@ -323,7 +365,9 @@ class MCTSPlayer:
         reward = await self._simulate(node)
         self._backpropagate(node, reward)
 
-    async def search(self, iterations: int, show_progress: bool = False, desc: str = "MCTS") -> Action:
+    async def search(
+        self, iterations: int, show_progress: bool = False, desc: str = "MCTS"
+    ) -> Action:
         if not self.root:
             raise ValueError("MCTS дерево не инициализировано")
 
@@ -351,7 +395,9 @@ class MCTSPlayer:
                 elapsed = time.time() - start_time
                 queries_done = self.game.query_count - start_queries
                 qps = queries_done / elapsed if elapsed > 0 else 0
-                pbar.set_postfix({"iter": i + 1, "queries": queries_done, "QPS": f"{qps:.1f}"})
+                pbar.set_postfix(
+                    {"iter": i + 1, "queries": queries_done, "QPS": f"{qps:.1f}"}
+                )
                 pbar.update(1)
 
         if show_progress:
@@ -377,7 +423,7 @@ class MCTSPlayer:
         stats = {
             "visit_distribution": {},
             "action_values": {},
-            "total_visits": self.root.visits
+            "total_visits": self.root.visits,
         }
 
         total_visits = sum(child.visits for child in self.root.children)
@@ -386,9 +432,13 @@ class MCTSPlayer:
             action_id = child.action.action_id
             action_description = child.action.description
             # Нормализованные визиты
-            stats["visit_distribution"][action_description] = child.visits / total_visits
+            stats["visit_distribution"][action_description] = (
+                child.visits / total_visits
+            )
             # Средние значения
-            stats["action_values"][action_description] = child.value / child.visits if child.visits > 0 else 0.0
+            stats["action_values"][action_description] = (
+                child.value / child.visits if child.visits > 0 else 0.0
+            )
 
         return best_child.action, stats
 
@@ -431,8 +481,20 @@ async def simulate_game(
     with open(log_path, "a", encoding="utf-8") as log_file:
         log_file.write(json.dumps(state.model_dump(), ensure_ascii=False) + "\n")
 
-    player1 = MCTSPlayer(player_id=state.players[0], game_api=api, c=c, max_depth=max_depth, iterations=mcts_iters)
-    player2 = MCTSPlayer(player_id=state.players[1], game_api=api, c=c, max_depth=max_depth, iterations=mcts_iters)
+    player1 = MCTSPlayer(
+        player_id=state.players[0],
+        game_api=api,
+        c=c,
+        max_depth=max_depth,
+        iterations=mcts_iters,
+    )
+    player2 = MCTSPlayer(
+        player_id=state.players[1],
+        game_api=api,
+        c=c,
+        max_depth=max_depth,
+        iterations=mcts_iters,
+    )
 
     await player1.initialize(state)
     await player2.initialize(state)
@@ -448,11 +510,17 @@ async def simulate_game(
         print(f"\nMove {move_no} - Player {current_player_id}")
 
         action = await active_player.search(
-            iterations=mcts_iters, show_progress=True, desc=f"Move {move_no} (Player {current_player_id})"
+            iterations=mcts_iters,
+            show_progress=True,
+            desc=f"Move {move_no} (Player {current_player_id})",
         )
 
         if active_player.root and active_player.root.children:
-            sorted_children = sorted(active_player.root.children, key=lambda child: child.visits, reverse=True)
+            sorted_children = sorted(
+                active_player.root.children,
+                key=lambda child: child.visits,
+                reverse=True,
+            )
             print("Root children stats (action_id: visits, value):")
             for child in sorted_children:
                 aid = child.action.description if child.action else None
@@ -467,8 +535,12 @@ async def simulate_game(
 
         history.append((move_no, current_player_id, action.action_id))
 
-        print(f"Player1 размер дерева: {len(player1.root.children) if player1.root else 0}")
-        print(f"Player2 размер дерева: {len(player2.root.children) if player2.root else 0}")
+        print(
+            f"Player1 размер дерева: {len(player1.root.children) if player1.root else 0}"
+        )
+        print(
+            f"Player2 размер дерева: {len(player2.root.children) if player2.root else 0}"
+        )
 
         player1_updated = await player1.update_root(action.action_id, new_state)
         player2_updated = await player2.update_root(action.action_id, new_state)
@@ -527,10 +599,16 @@ class BootstrapDataCollector:
         state = await self.api.generate_state()
         players = [
             MCTSPlayer(
-                game_api=self.api, max_depth=self.mcts_params["max_depth"], player_id=0, c=self.mcts_params["c"]
+                game_api=self.api,
+                max_depth=self.mcts_params["max_depth"],
+                player_id=0,
+                c=self.mcts_params["c"],
             ),
             MCTSPlayer(
-                game_api=self.api, max_depth=self.mcts_params["max_depth"], player_id=1, c=self.mcts_params["c"]
+                game_api=self.api,
+                max_depth=self.mcts_params["max_depth"],
+                player_id=1,
+                c=self.mcts_params["c"],
             ),
         ]
         await players[0].initialize(state)
@@ -601,7 +679,9 @@ class BootstrapDataCollector:
 if __name__ == "__main__":
     api = AsyncGameApi("http://localhost:8080")
     try:
-        asyncio.run(simulate_game(api, max_moves=1500, mcts_iters=100, c=1.4, max_depth=20))
+        asyncio.run(
+            simulate_game(api, max_moves=1500, mcts_iters=100, c=1.4, max_depth=20)
+        )
     finally:
         # Закрываем сессию (вариант: внутри simulate_game)
         asyncio.run(api.close())

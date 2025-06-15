@@ -44,7 +44,9 @@ class JSONGameData:
             "game_id": game_data["game_id"],
             "total_moves": game_data["total_moves"],
             "winner": game_data["winner"],
-            "experiences": [JSONGameData.experience_to_dict(exp) for exp in game_data["experiences"]],
+            "experiences": [
+                JSONGameData.experience_to_dict(exp) for exp in game_data["experiences"]
+            ],
         }
 
         # Сохраняем с ensure_ascii=False для читаемости
@@ -53,7 +55,10 @@ class JSONGameData:
 
 
 async def collect_single_game(
-    collector: BootstrapDataCollector, game_id: int, progress_bar: tqdm_asyncio, session_uuid: str
+    collector: BootstrapDataCollector,
+    game_id: int,
+    progress_bar: tqdm_asyncio,
+    session_uuid: str,
 ) -> Dict:
     """Собирает данные одной игры"""
     try:
@@ -63,7 +68,9 @@ async def collect_single_game(
         game_data = await collector.collect_game(game_id)
 
         # Сохраняем в JSON в папку с UUID сессии
-        output_path = Path(f"bootstrap_data/games_{session_uuid}/game_{game_id:04d}.json")
+        output_path = Path(
+            f"bootstrap_data/games_{session_uuid}/game_{game_id:04d}.json"
+        )
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         JSONGameData.save_game(game_data, output_path)
@@ -73,7 +80,11 @@ async def collect_single_game(
         # Обновляем прогресс
         progress_bar.update(1)
         progress_bar.set_postfix(
-            {"moves": game_data["total_moves"], "winner": game_data["winner"], "time": f"{duration:.1f}s"}
+            {
+                "moves": game_data["total_moves"],
+                "winner": game_data["winner"],
+                "time": f"{duration:.1f}s",
+            }
         )
 
         return {
@@ -120,7 +131,8 @@ async def main():
 
     # API с пулом соединений
     api = AsyncGameApi(
-        base_url="http://localhost:8080", max_concurrent=CONCURRENT_GAMES * 2  # Запас для параллельных запросов
+        base_url="http://localhost:8080",
+        max_concurrent=CONCURRENT_GAMES * 2,  # Запас для параллельных запросов
     )
 
     # Параметры MCTS
@@ -168,7 +180,9 @@ async def main():
     print_statistics(results, session_uuid)
 
 
-async def save_metadata(results: List[Dict], mcts_params: Dict, session_uuid: str, session_folder: str):
+async def save_metadata(
+    results: List[Dict], mcts_params: Dict, session_uuid: str, session_folder: str
+):
     """Сохраняет метаданные о собранных данных"""
 
     successful = [r for r in results if "error" not in r]
@@ -183,13 +197,21 @@ async def save_metadata(results: List[Dict], mcts_params: Dict, session_uuid: st
         "mcts_params": mcts_params,
         "statistics": {
             "total_experiences": sum(r.get("experiences", 0) for r in successful),
-            "avg_game_length": sum(r.get("moves", 0) for r in successful) / len(successful) if successful else 0,
+            "avg_game_length": (
+                sum(r.get("moves", 0) for r in successful) / len(successful)
+                if successful
+                else 0
+            ),
             "avg_collection_time": (
-                sum(r.get("duration", 0) for r in successful) / len(successful) if successful else 0
+                sum(r.get("duration", 0) for r in successful) / len(successful)
+                if successful
+                else 0
             ),
             "win_distribution": {},
         },
-        "failed_games": [{"game_id": r["game_id"], "error": r["error"]} for r in failed],
+        "failed_games": [
+            {"game_id": r["game_id"], "error": r["error"]} for r in failed
+        ],
     }
 
     # Подсчет побед

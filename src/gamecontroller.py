@@ -3,8 +3,9 @@ from typing import Dict, Any, Optional, List
 
 from src.field import Field, EntityType
 
+
 class GameController:
-    def __init__(self, players:List[str]):
+    def __init__(self, players: List[str]):
         self.field = Field(8, 8, players)
         self.players = players
         self._current_player_index = random.randint(0, len(players) - 1)
@@ -12,7 +13,7 @@ class GameController:
     def ensure_player_turn(self, player_name: str):
         current_player = self.players[self._current_player_index]
         if current_player != player_name:
-            raise Exception('Not your turn')
+            raise Exception("Not your turn")
 
     def build_action(self, x: int, y: int, player_name: str, building: str):
         self.ensure_player_turn(player_name)
@@ -22,7 +23,9 @@ class GameController:
         self.ensure_player_turn(player_name)
         self.field.spawn_unit(x, y, player_name, level)
 
-    def move_unit_action(self, from_x: int, from_y: int, to_x: int, to_y: int, player_name: str):
+    def move_unit_action(
+        self, from_x: int, from_y: int, to_x: int, to_y: int, player_name: str
+    ):
         self.ensure_player_turn(player_name)
         self.field.move_unit(from_x, from_y, to_x, to_y, player_name)
 
@@ -38,7 +41,7 @@ class GameController:
         if winner is not None:
             return winner
 
-        num_players = len(self.players) 
+        num_players = len(self.players)
         for _ in range(num_players):
             self._current_player_index += 1
             self._current_player_index %= len(self.players)
@@ -105,10 +108,7 @@ class GameController:
 
             moves = self.get_moves_action(x, y, player_name)
 
-            return {
-                "type": "available_moves",
-                "moves": moves
-            }
+            return {"type": "available_moves", "moves": moves}
 
         elif msg_type == "end_turn":
             winner = self.end_turn(player_name)
