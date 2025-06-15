@@ -9,6 +9,8 @@
         "types": [
 
         ],
+        "rootDir": "./static/js",
+        "outDir": "./static/js/compiled",
         "module": "commonjs",
         "experimentalDecorators": true,
         "emitDecoratorMetadata": true,
@@ -16,9 +18,10 @@
         "declaration": true
     },
     "include": [
-        "static/**/*.ts"
+        "./static/js/*.ts"
     ],
     "exclude": [
+        "./static/js/compiled/**/*",
         "node_modules",
         "dist",
         "tests"

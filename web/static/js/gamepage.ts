@@ -145,14 +145,14 @@ const icons: Record<string, HTMLImageElement> = {
     "weakTower": new Image(),
     "strongTower": new Image()
 };
-icons.unit1.src = "/static/unit1.png";
-icons.unit2.src = "/static/unit2.png";
-icons.unit3.src = "/static/unit3.png";
-icons.unit4.src = "/static/unit4.png";
-icons.base.src = "/static/base.png";
-icons.farm.src = "/static/farm.png";
-icons.weakTower.src = "/static/weakTower.png";
-icons.strongTower.src = "/static/strongTower.png";
+icons.unit1.src = "/static/images/unit1.png";
+icons.unit2.src = "/static/images/unit2.png";
+icons.unit3.src = "/static/images/unit3.png";
+icons.unit4.src = "/static/images/unit4.png";
+icons.base.src = "/static/images/base.png";
+icons.farm.src = "/static/images/farm.png";
+icons.weakTower.src = "/static/images/weakTower.png";
+icons.strongTower.src = "/static/images/strongTower.png";
 
 
 async function loadAllIcons(): Promise<void> {
