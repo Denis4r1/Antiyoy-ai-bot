@@ -1,0 +1,39 @@
+name: Auto-format Python
+
+# Запускать на каждый пуш в ветку main (или любую другую по вкусу)
+on:
+  push
+
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0           # чтобы была история для пуша
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install Black
+        run: pip install black
+
+      - name: Run Black
+        run: |
+          black .
+
+      - name: Commit formatted code
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "ci: авто-форматирование Black" || echo "No changes to commit"
+
+      - name: Push changes
+        uses: ad-m/github-push-action@v0.6.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
