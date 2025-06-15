@@ -24,7 +24,13 @@ COPY requirements-gameserver.txt .
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir --prefer-binary -r requirements-gameserver.txt
 
-RUN useradd --create-home appuser
+RUN useradd --create-home --shell /bin/bash appuser
+
+RUN mkdir -p /tmp/prometheus_multiproc && \
+    chown appuser:appuser /tmp/prometheus_multiproc
+
+COPY gunicorn_config.py .
+
 
 # Копируем исходный код
 COPY src/ ./src/
@@ -39,5 +45,11 @@ RUN chown -R appuser:appuser /app
 
 USER appuser
 
+ENV PYTHONPATH=/app
+
 EXPOSE 8000
-CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "src.server.server:app", "--bind", "0.0.0.0:8000"]
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+CMD ["gunicorn", "-c", "gunicorn_config.py", "src.server.app:app"]
