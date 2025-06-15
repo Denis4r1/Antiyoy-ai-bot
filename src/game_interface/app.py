@@ -1,6 +1,6 @@
 import json
 import os
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
@@ -25,19 +25,37 @@ app.mount("/static", StaticFiles(directory="web/static"), name="static")
 LOG_DIR = "logs"
 
 
-@app.get("/state_editor")
-async def get_index():
+@app.get(
+    "/state_editor",
+    response_class=HTMLResponse,
+    tags=["UI"],
+    summary="Редактор состояний игры",
+    description="HTML страница редактора состояний игры",
+)
+async def get_state_editor():
     with open("web/templates/state_editor.html", "r", encoding="utf-8") as f:
         return HTMLResponse(f.read())
 
 
-@app.get("/log_player")
-async def get_index():
+@app.get(
+    "/log_player",
+    response_class=HTMLResponse,
+    tags=["UI"],
+    summary="Проигрыватель логов",
+    description="HTML страница проигрывателя логов",
+)
+async def get_log_player():
     with open("web/templates/log_player.html", "r", encoding="utf-8") as f:
         return HTMLResponse(f.read())
 
 
-@app.get("/log_player/demo", response_class=HTMLResponse)
+@app.get(
+    "/log_player/demo",
+    response_class=HTMLResponse,
+    tags=["UI"],
+    summary="Демо проигрывателя логов",
+    description="HTML страница проигрывателя логов с предзагруженным демо логом",
+)
 async def log_player_demo():
     html = Path("web/templates/log_player.html").read_text(encoding="utf-8")
 
@@ -69,9 +87,14 @@ async def log_player_demo():
 @app.post(
     "/generate_state",
     response_model=GameState,
-    summary="Генерация нового состояния игры",
+    tags=["Game State"],
+    summary="Создание нового состояния игры",
+    description="Генерирует state с указанным количеством игроков. Может создать случайное состояние или загрузить базовую карту.",
 )
-def generate_state(num_players: int = 2, random: bool = False):
+def generate_state(
+    num_players: int = Query(2, ge=2, le=4, description="Количество игроков (от 1 до 4), проверено для 2"),
+    random: bool = Query(False, description="Создать случайную (True) или загрузить базовую карту (False)"),
+):
     """Создает новую игру и возвращает ее состояние"""
     try:
         if not random:
@@ -115,13 +138,25 @@ def generate_state(num_players: int = 2, random: bool = False):
         )
 
 
-@app.post("/get_actions", response_model=List[Action])
+@app.post(
+    "/get_actions",
+    response_model=List[Action],
+    tags=["Game State"],
+    summary="Получить доступные действия",
+    description="Возвращает список всех разрешенных действий для заданного state",
+)
 def get_actions_endpoint(state: GameState):
     state_json = state.model_dump_json()
     return _cached_get_actions(state_json)
 
 
-@app.post("/apply_action", response_model=ApplyActionResponse)
+@app.post(
+    "/apply_action",
+    response_model=ApplyActionResponse,
+    tags=["Game State"],
+    summary="Применить действие",
+    description="Применяет указанное действие к state и возвращает новый state",
+)
 def apply_action_endpoint(request: ActionRequest):
     state_json = request.state.model_dump_json()
     params_json = json.dumps(request.params or {}, sort_keys=True)
@@ -134,7 +169,12 @@ def apply_action_endpoint(request: ActionRequest):
     )
 
 
-@app.get("/logs")
+@app.get(
+    "/logs",
+    tags=["Logs"],
+    summary="Список логов",
+    description="Возвращает список всех доступных файлов логов в директории logs/ , полезно для отслеживания игр",
+)
 async def list_logs():
     """
     Возвращает список всех JSON-файлов в папке logs.
@@ -151,7 +191,9 @@ async def list_logs():
     return {"logs": files}
 
 
-@app.get("/logs/{filename}")
+@app.get(
+    "/logs/{filename}", tags=["Logs"], summary="Скачать лог", description="Возвращает содержимое указанного файла лога, полезно для отслеживания игры в проигрывателе логов в реальном времени"
+)
 async def get_log(filename: str):
     """
     Отдаёт содержимое конкретного лога по имени файла.

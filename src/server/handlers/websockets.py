@@ -17,7 +17,23 @@ def create_websocket_router(
 
     @router.websocket("/ws/lobby/{room_id}/{token}")
     async def lobby_ws_endpoint(websocket: WebSocket, room_id: str, token: str):
-        """WebSocket endpoint для лобби"""
+        """
+        WebSocket endpoint для лобби комнаты
+        
+        **Параметры:**
+        - room_id: ID игровой комнаты
+        - token: Токен игрока (должен быть зарегистрирован в комнате)
+        
+        **Входящие сообщения:**
+        - "READY" - игрок готов к игре
+        - "NOT_READY" - игрок не готов
+        - текст - сообщение в чат лобби
+        
+        **Исходящие сообщения:**
+        - {"type": "players_update", "players": [...]} - обновление списка игроков
+        - "Система: ..." - системные сообщения
+        - "Имя: сообщение" - сообщения чата
+        """
         game_service = get_game_service()
         room = game_service.get_room(room_id)
 
@@ -127,7 +143,23 @@ def create_websocket_router(
     async def game_ws_endpoint(
         websocket: WebSocket, room_id: str, token: str, username: str
     ):
-        """WebSocket endpoint для игры"""
+        """
+        WebSocket endpoint для игрового процесса
+
+        **Параметры:**
+        - room_id: ID игровой комнаты
+        - token: Токен игрока
+        - username: Имя игрока
+
+        **Входящие сообщения:**
+        - JSON объекты с игровыми командами
+
+        **Исходящие сообщения:**
+        - {"type": "game_state_update", ...} - обновление состояния игры
+        - {"type": "available_moves", ...} - доступные ходы
+        - {"type": "game_over", ...} - завершение игры
+        - {"type": "error", "message": "..."} - ошибки
+        """
         # Проверяем разрешение на подключение
         connected_ok = await game_manager.connect(room_id, token, websocket)
 

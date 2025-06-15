@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
 
 from .config import STATIC_DIR, CORS_ORIGINS, DEBUG
 from .models.managers import LobbyConnectionManager, GameConnectionManager
@@ -96,7 +97,11 @@ def create_app() -> FastAPI:
     app.include_router(ws_router)
 
     # Метрики Prometheus
-    @app.get("/metrics")
+    @app.get("/metrics",
+    response_class=PlainTextResponse,
+    tags=["Monitoring"],
+    summary="Prometheus метрики",
+    description="Метрики")
     async def get_metrics():
         return get_metrics_response()
 
