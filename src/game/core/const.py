@@ -1,0 +1,20 @@
+# Константы
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+RED = (255, 0, 0)
+GRAY = (170, 170, 170)
+GREEN = (0, 255, 0)
+DARK_BLUE = (0, 0, 139)
+
+CUR_VAL = 1
+ISLAND_VAL = 2
+MAP_VAL = 3
+
+
+COLOR_MAPPING = {
+    ISLAND_VAL: BLACK,
+    MAP_VAL: GRAY,
+    CUR_VAL: RED,
+}
+
+GAP = 2

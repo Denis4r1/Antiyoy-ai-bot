@@ -1,0 +1,42 @@
+name: Auto-format Python
+
+# даём GITHUB_TOKEN права на запись в содержимое репозитория
+permissions:
+  contents: write
+
+on:
+  push:          # срабатывает на любых ветках
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          # сохраняем credentials для пуша
+          persist-credentials: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install Black
+        run: pip install black
+
+      - name: Run Black
+        run: black .
+
+      - name: Commit formatted code
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "ci: авто-форматирование Black" || echo "No changes to commit"
+
+      - name: Push changes back to this branch
+        run: |
+          # github.ref_name — имя ветки, в которой сработал workflow
+          git push origin HEAD:refs/heads/${{ github.ref_name }}

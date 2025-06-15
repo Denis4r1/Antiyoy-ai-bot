@@ -1,0 +1,1222 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Game State Editor</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            height: 100%;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            grid-template-rows: auto 1fr;
+            gap: 10px;
+            padding: 10px;
+            height: calc(100% - 20px);
+        }
+
+        .header {
+            grid-column: 1 / 3;
+            grid-row: 1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border-radius: 5px;
+        }
+
+        .canvas-container {
+            grid-column: 1;
+            grid-row: 2;
+            overflow: auto;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        .editor-container {
+            grid-column: 2;
+            grid-row: 2;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            overflow-y: auto;
+        }
+
+        #gameCanvas {
+            max-width: 100%;
+            height: auto;
+        }
+
+        #jsonEditor {
+            width: 100%;
+            height: 300px;
+            font-family: monospace;
+            font-size: 12px;
+            resize: vertical;
+        }
+
+        #cellEditor {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+
+        button {
+            padding: 8px 12px;
+            cursor: pointer;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            background-color: #f0f0f0;
+        }
+
+        button:hover {
+            background-color: #e0e0e0;
+        }
+
+        button.primary {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+        }
+
+        button.primary:hover {
+            background-color: #45a049;
+        }
+
+        #status {
+            color: red;
+            margin-top: 10px;
+            padding: 5px;
+            min-height: 1.5em;
+        }
+
+        .actions-panel {
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        #actionsList {
+            margin-top: 10px;
+        }
+
+        .action-item {
+            padding: 5px;
+            margin: 2px 0;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+
+        .action-item:hover {
+            background-color: #f0f0f0;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content {
+            background-color: #f8f8f8;
+            margin: 10% auto;
+            padding: 20px;
+            border-radius: 5px;
+            width: 60%;
+            max-width: 500px;
+        }
+
+        .modal-options {
+            margin: 15px 0;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .modal-option {
+            padding: 8px;
+            margin: 5px 0;
+            cursor: pointer;
+            border-radius: 4px;
+            background-color: #e9e9e9;
+        }
+
+        .modal-option:hover {
+            background-color: #d9d9d9;
+        }
+
+        .modal-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .territory-item {
+            margin-bottom: 10px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        .territory-item h4 {
+            margin-top: 0;
+            margin-bottom: 8px;
+        }
+
+        .territory-cells {
+            font-family: monospace;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Game State Editor</h1>
+            <div class="button-group">
+                <button id="generateStateBtn" class="primary">Generate New State</button>
+                <button id="loadStateBtn">Load State from JSON</button>
+                <button id="saveStateBtn">Save State to JSON</button>
+            </div>
+        </div>
+
+        <div class="canvas-container">
+            <canvas id="gameCanvas"></canvas>
+        </div>
+
+        <div class="editor-container">
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="json">JSON View</button>
+                <button class="tab-btn" data-tab="edit">Edit Cell</button>
+                <button class="tab-btn" data-tab="actions">Available Actions</button>
+                <button class="tab-btn" data-tab="territories">Territories</button>
+            </div>
+
+            <div id="jsonTab" class="tab-content">
+                <textarea id="jsonEditor"></textarea>
+                <div class="button-group">
+                    <button id="updateFromJsonBtn">Update from JSON</button>
+                    <button id="formatJsonBtn">Format JSON</button>
+                </div>
+            </div>
+
+            <div id="editTab" class="tab-content" style="display: none;">
+                <div id="cellEditor">
+                    <h3>Cell Editor</h3>
+                    <p>Select a cell on the map to edit it</p>
+                    <div id="cellEditorContent" style="display: none;">
+                        <p>Position: <span id="cellPosition"></span></p>
+                        <div>
+                            <label for="cellOwner">Owner:</label>
+                            <select id="cellOwner"></select>
+                        </div>
+                        <div>
+                            <label for="cellEntity">Entity:</label>
+                            <select id="cellEntity">
+                                <option value="empty">Empty</option>
+                                <option value="unit1">Unit 1</option>
+                                <option value="unit2">Unit 2</option>
+                                <option value="unit3">Unit 3</option>
+                                <option value="unit4">Unit 4</option>
+                                <option value="base">Base</option>
+                                <option value="farm">Farm</option>
+                                <option value="weakTower">Weak Tower</option>
+                                <option value="strongTower">Strong Tower</option>
+                            </select>
+                        </div>
+                        <button id="updateCellBtn">Update Cell</button>
+                    </div>
+                </div>
+                <div>
+                    <h3>State Editor</h3>
+                    <div>
+                        <label for="currentPlayerIndex">Current Player:</label>
+                        <select id="currentPlayerIndex"></select>
+                    </div>
+                    <button id="updateStateBtn">Update State</button>
+                </div>
+            </div>
+
+            <div id="actionsTab" class="tab-content" style="display: none;">
+                <div class="actions-panel">
+                    <h3>Available Actions</h3>
+                    <button id="getActionsBtn">Get Available Actions</button>
+                    <div id="actionsList"></div>
+                </div>
+                <div id="actionResult" style="margin-top: 10px; display: none;">
+                    <h3>Action Result</h3>
+                    <button id="applyResultBtn">Apply Result as New State</button>
+                    <pre id="actionResultContent"></pre>
+                </div>
+            </div>
+
+            <div id="territoriesTab" class="tab-content" style="display: none;">
+                <h3>Territories</h3>
+                <div id="territoriesList"></div>
+            </div>
+
+            <div id="status"></div>
+        </div>
+    </div>
+
+    <!-- Модальное окно для выбора территории -->
+    <div id="territoryModal" class="modal">
+        <div class="modal-content">
+            <h3>Choose a territory</h3>
+            <p id="territoryModalMessage"></p>
+            <div id="territoryOptions" class="modal-options"></div>
+            <div class="modal-buttons">
+                <button id="modalCancelBtn">Cancel</button>
+                <button id="modalCreateNewBtn">Create New Territory</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Constants
+        const radius = 30; // Radius of the hexagon
+        const iconSize = 40; // Size of the icons
+
+        // State
+        let gameState = null;
+        let selectedTab = 'json';
+        let selectedCell = null;
+        let hoveredCell = null;
+        let availableActions = [];
+        let actionResult = null;
+
+        // Canvas elements
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Модальное окно
+        const territoryModal = document.getElementById('territoryModal');
+        const territoryOptions = document.getElementById('territoryOptions');
+        const territoryModalMessage = document.getElementById('territoryModalMessage');
+        let territoryModalCallback = null;
+
+        // Icons
+        const icons = {
+            "unit1": new Image(),
+            "unit2": new Image(),
+            "unit3": new Image(),
+            "unit4": new Image(),
+            "base": new Image(),
+            "farm": new Image(),
+            "weakTower": new Image(),
+            "strongTower": new Image()
+        };
+
+        // Colors for players
+        const localPlayerColor = "#B2E4B2";
+        const pastelColorPool = ["#FFB3BA", "#FFDFBA", "#FFFFBA", "#BAFFC9", "#BAE1FF", "#D3BAFF", "#FFBAF0"];
+        const colors = {
+            null: '#EEEEEE',
+        };
+
+        // API URL (assuming it's running on the same host)
+        const API_URL = window.location.origin;
+
+        // Initialize the app
+        initializeApp();
+
+        function initializeApp() {
+            // Load icons
+            loadIcons();
+
+            // Set up event listeners
+            setupEventListeners();
+
+            // Show the initial tab
+            showTab(selectedTab);
+        }
+
+        function loadIcons() {
+            icons.unit1.src = "/static/unit1.png";
+            icons.unit2.src = "/static/unit2.png";
+            icons.unit3.src = "/static/unit3.png";
+            icons.unit4.src = "/static/unit4.png";
+            icons.base.src = "/static/base.png";
+            icons.farm.src = "/static/farm.png";
+            icons.weakTower.src = "/static/weakTower.png";
+            icons.strongTower.src = "/static/strongTower.png";
+
+            Object.values(icons).forEach(img => {
+                img.onerror = () => {
+                    console.warn('Failed to load image:', img.src);
+                };
+            });
+        }
+
+        function setupEventListeners() {
+            // Tab buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.addEventListener('click', function () {
+                    const tab = this.getAttribute('data-tab');
+                    showTab(tab);
+                });
+            });
+
+            // Button events
+            document.getElementById('generateStateBtn').addEventListener('click', generateNewState);
+            document.getElementById('loadStateBtn').addEventListener('click', loadStateFromFile);
+            document.getElementById('saveStateBtn').addEventListener('click', saveStateToFile);
+            document.getElementById('updateFromJsonBtn').addEventListener('click', updateFromJson);
+            document.getElementById('formatJsonBtn').addEventListener('click', formatJson);
+            document.getElementById('updateCellBtn').addEventListener('click', updateSelectedCell);
+            document.getElementById('updateStateBtn').addEventListener('click', updateStateProperties);
+            document.getElementById('getActionsBtn').addEventListener('click', getAvailableActions);
+            document.getElementById('applyResultBtn').addEventListener('click', applyActionResult);
+
+            // Модальное окно
+            document.getElementById('modalCancelBtn').addEventListener('click', () => {
+                territoryModal.style.display = 'none';
+                territoryModalCallback = null;
+            });
+
+            document.getElementById('modalCreateNewBtn').addEventListener('click', () => {
+                territoryModal.style.display = 'none';
+                if (territoryModalCallback) {
+                    territoryModalCallback('new');
+                }
+            });
+
+            // Canvas events
+            canvas.addEventListener('click', handleCanvasClick);
+            canvas.addEventListener('mousemove', handleCanvasMouseMove);
+            canvas.addEventListener('mouseleave', handleCanvasMouseLeave);
+        }
+
+        function showTab(tab) {
+            // Update active tab button
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.getAttribute('data-tab') === tab);
+            });
+
+            // Show selected tab content, hide others
+            document.getElementById('jsonTab').style.display = tab === 'json' ? 'block' : 'none';
+            document.getElementById('editTab').style.display = tab === 'edit' ? 'block' : 'none';
+            document.getElementById('actionsTab').style.display = tab === 'actions' ? 'block' : 'none';
+            document.getElementById('territoriesTab').style.display = tab === 'territories' ? 'block' : 'none';
+
+            // Если выбрали вкладку териториий, обновляем список
+            if (tab === 'territories') {
+                updateTerritoriesList();
+            }
+
+            selectedTab = tab;
+        }
+
+        async function generateNewState() {
+            try {
+                const response = await fetch(`${API_URL}/generate_state?num_players=2`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                gameState = await response.json();
+                updateUI();
+                showStatus('New state generated successfully', 'success');
+            } catch (error) {
+                console.error('Error generating state:', error);
+                showStatus('Error generating state: ' + error.message);
+            }
+        }
+
+        function loadStateFromFile() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'application/json';
+
+            input.onchange = e => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = readerEvent => {
+                    try {
+                        const content = readerEvent.target.result;
+                        gameState = JSON.parse(content);
+                        updateUI();
+                        showStatus('State loaded successfully', 'success');
+                    } catch (error) {
+                        console.error('Error parsing JSON:', error);
+                        showStatus('Error parsing JSON: ' + error.message);
+                    }
+                };
+                reader.readAsText(file);
+            };
+
+            input.click();
+        }
+
+        function saveStateToFile() {
+            if (!gameState) {
+                showStatus('No state to save');
+                return;
+            }
+
+            const dataStr = JSON.stringify(gameState, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'game_state.json';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
+        function updateFromJson() {
+            try {
+                const jsonText = document.getElementById('jsonEditor').value;
+                gameState = JSON.parse(jsonText);
+                updateUI(false); // Don't update the text area again
+                drawMap();
+                showStatus('State updated from JSON', 'success');
+            } catch (error) {
+                console.error('Error parsing JSON:', error);
+                showStatus('Error parsing JSON: ' + error.message);
+            }
+        }
+
+        function formatJson() {
+            try {
+                const jsonText = document.getElementById('jsonEditor').value;
+                const parsed = JSON.parse(jsonText);
+                document.getElementById('jsonEditor').value = JSON.stringify(parsed, null, 2);
+                showStatus('JSON formatted', 'success');
+            } catch (error) {
+                console.error('Error formatting JSON:', error);
+                showStatus('Error formatting JSON: ' + error.message);
+            }
+        }
+
+        async function updateSelectedCell() {
+            if (!selectedCell || !gameState) {
+                showStatus('No cell selected');
+                return;
+            }
+
+            const cellKey = `${selectedCell.y},${selectedCell.x}`;
+            const newOwner = document.getElementById('cellOwner').value === 'null' ? null : document.getElementById('cellOwner').value;
+            const entity = document.getElementById('cellEntity').value;
+
+            // Получаем текущего владельца ячейки
+            const originalOwner = gameState.field_data.cells[cellKey]?.owner;
+
+            // Если владелец не изменился, просто обновляем сущность
+            if (originalOwner === newOwner) {
+                if (!gameState.field_data.cells[cellKey]) {
+                    gameState.field_data.cells[cellKey] = { owner: newOwner };
+                }
+                gameState.field_data.cells[cellKey].entity = entity;
+                updateUI();
+                showStatus('Cell entity updated', 'success');
+                return;
+            }
+
+            // Теперь обрабатываем изменение владельца
+
+            // 1. Если есть оригинальный владелец, удаляем клетку из его территории
+            if (originalOwner) {
+                await removeFromTerritory(cellKey, originalOwner);
+            }
+
+            // 2. Обновляем клетку
+            if (!gameState.field_data.cells[cellKey]) {
+                gameState.field_data.cells[cellKey] = {};
+            }
+            gameState.field_data.cells[cellKey].owner = newOwner;
+            gameState.field_data.cells[cellKey].entity = entity;
+
+            // 3. Если есть новый владелец, добавляем клетку в его территорию
+            if (newOwner) {
+                await addToTerritory(cellKey, newOwner);
+            }
+
+            // Обновляем UI
+            updateUI();
+            showStatus('Cell and territories updated', 'success');
+        }
+
+        function updateStateProperties() {
+            if (!gameState) {
+                showStatus('No state loaded');
+                return;
+            }
+
+            const playerIndex = parseInt(document.getElementById('currentPlayerIndex').value);
+
+            if (isNaN(playerIndex) || playerIndex < 0 || playerIndex >= gameState.players.length) {
+                showStatus('Invalid player index');
+                return;
+            }
+
+            gameState.current_player_index = playerIndex;
+
+            // Refresh the UI
+            updateUI();
+            showStatus('State properties updated', 'success');
+        }
+
+        async function getAvailableActions() {
+            if (!gameState) {
+                showStatus('No state loaded');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/get_actions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(gameState)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                availableActions = await response.json();
+                displayActions();
+                showStatus(`Found ${availableActions.length} available actions`, 'success');
+            } catch (error) {
+                console.error('Error getting actions:', error);
+                showStatus('Error getting actions: ' + error.message);
+            }
+        }
+
+        function displayActions() {
+            const actionsList = document.getElementById('actionsList');
+            actionsList.innerHTML = '';
+
+            if (!availableActions || availableActions.length === 0) {
+                actionsList.innerHTML = '<p>No actions available</p>';
+                return;
+            }
+
+            availableActions.forEach(action => {
+                const actionItem = document.createElement('div');
+                actionItem.className = 'action-item';
+                actionItem.textContent = action.description;
+                actionItem.addEventListener('click', () => executeAction(action.action_id));
+                actionsList.appendChild(actionItem);
+            });
+        }
+
+        async function executeAction(actionId) {
+            if (!gameState) {
+                showStatus('No state loaded');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/apply_action`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        state: gameState,
+                        action_id: actionId
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+                }
+
+                actionResult = await response.json();
+
+                // Display the result
+                const resultElem = document.getElementById('actionResult');
+                resultElem.style.display = 'block';
+
+                const resultContent = document.getElementById('actionResultContent');
+                resultContent.textContent = JSON.stringify(actionResult.result, null, 2);
+
+                showStatus('Action executed successfully', 'success');
+            } catch (error) {
+                console.error('Error executing action:', error);
+                showStatus('Error executing action: ' + error.message);
+            }
+        }
+
+        function applyActionResult() {
+            if (!actionResult || !actionResult.state) {
+                showStatus('No action result to apply');
+                return;
+            }
+
+            gameState = actionResult.state;
+            updateUI();
+
+            // Clear the result display
+            document.getElementById('actionResult').style.display = 'none';
+            actionResult = null;
+
+            showStatus('New state applied', 'success');
+        }
+
+        function updateUI(updateJson = true) {
+            if (!gameState) return;
+
+            // Update JSON editor if needed
+            if (updateJson) {
+                document.getElementById('jsonEditor').value = JSON.stringify(gameState, null, 2);
+            }
+
+            // Update canvas dimensions based on the map size
+            updateCanvasDimensions();
+
+            // Draw the map
+            drawMap();
+
+            // Update cell editor dropdowns
+            updateCellEditorDropdowns();
+
+            // Update state editor dropdowns
+            updateStateEditorDropdowns();
+
+            // Update territories list if tab is active
+            if (selectedTab === 'territories') {
+                updateTerritoriesList();
+            }
+        }
+
+        function updateCanvasDimensions() {
+            if (!gameState || !gameState.field_data) return;
+
+            const rows = gameState.field_data.height;
+            const cols = gameState.field_data.width;
+
+            canvas.width = cols * 1.5 * radius + radius;
+            canvas.height = rows * Math.sqrt(3) * radius + radius;
+        }
+
+        function updateCellEditorDropdowns() {
+            if (!gameState) return;
+
+            const ownerSelect = document.getElementById('cellOwner');
+            ownerSelect.innerHTML = '<option value="null">None</option>';
+
+            gameState.players.forEach((player, index) => {
+                const option = document.createElement('option');
+                option.value = player;
+                option.textContent = `${player} (${index})`;
+                ownerSelect.appendChild(option);
+            });
+
+            // Update selected cell info if one is selected
+            if (selectedCell) {
+                updateSelectedCellInfo();
+            }
+        }
+
+        function updateStateEditorDropdowns() {
+            if (!gameState) return;
+
+            const playerSelect = document.getElementById('currentPlayerIndex');
+            playerSelect.innerHTML = '';
+
+            gameState.players.forEach((player, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = `${index}: ${player}`;
+                playerSelect.appendChild(option);
+            });
+
+            playerSelect.value = gameState.current_player_index;
+        }
+
+        function updateTerritoriesList() {
+            const territoriesList = document.getElementById('territoriesList');
+            territoriesList.innerHTML = '';
+
+            if (!gameState || !gameState.territories_data || gameState.territories_data.length === 0) {
+                territoriesList.innerHTML = '<p>No territories</p>';
+                return;
+            }
+
+            gameState.territories_data.forEach((territory, index) => {
+                const territoryItem = document.createElement('div');
+                territoryItem.className = 'territory-item';
+
+                const owner = territory.owner;
+                const funds = territory.funds;
+                const tiles = territory.tiles;
+
+                territoryItem.innerHTML = `
+                    <h4>Territory ${index + 1} - Owner: ${owner || 'None'}</h4>
+                    <div>Funds: ${funds}</div>
+                    <div>Tiles: ${tiles.length}</div>
+                    <div class="territory-cells">${JSON.stringify(tiles)}</div>
+                `;
+
+                territoriesList.appendChild(territoryItem);
+            });
+        }
+
+        function updateSelectedCellInfo() {
+            if (!selectedCell || !gameState) return;
+
+            const cellKey = `${selectedCell.y},${selectedCell.x}`;
+            const cellEditorContent = document.getElementById('cellEditorContent');
+            cellEditorContent.style.display = 'block';
+
+            document.getElementById('cellPosition').textContent = `(${selectedCell.y}, ${selectedCell.x})`;
+
+            const cell = gameState.field_data.cells[cellKey] || { owner: null, entity: 'empty' };
+
+            document.getElementById('cellOwner').value = cell.owner === null ? 'null' : cell.owner;
+            document.getElementById('cellEntity').value = cell.entity || 'empty';
+        }
+
+        // Функции для работы с территориями
+
+        // Показывает модальное окно для выбора территории
+        function showTerritoryModal(message, territories, callback) {
+            territoryModalMessage.textContent = message;
+            territoryOptions.innerHTML = '';
+
+            territories.forEach((territory, index) => {
+                const option = document.createElement('div');
+                option.className = 'modal-option';
+                option.textContent = `Territory ${index + 1}: ${territory.tiles.length} tiles, ${territory.funds} funds`;
+                option.addEventListener('click', () => {
+                    territoryModal.style.display = 'none';
+                    callback(territory);
+                });
+                territoryOptions.appendChild(option);
+            });
+
+            territoryModalCallback = callback;
+            territoryModal.style.display = 'block';
+        }
+
+        // Удаляет клетку из территории владельца
+        async function removeFromTerritory(cellKey, owner) {
+            // Находим все территории этого владельца
+            const ownerTerritories = gameState.territories_data.filter(t => t.owner === owner);
+
+            // Находим территорию, в которой есть эта клетка
+            const targetTerritory = ownerTerritories.find(t =>
+                t.tiles.some(tile => JSON.stringify(tile) === JSON.stringify(cellKey.split(',').map(Number)))
+            );
+
+            if (!targetTerritory) {
+                console.warn(`Cell ${cellKey} not found in any territory of ${owner}`);
+                return;
+            }
+
+            // Удаляем клетку из территории
+            const cellKeyArray = cellKey.split(',').map(Number);
+            targetTerritory.tiles = targetTerritory.tiles.filter(tile =>
+                !(tile[0] === cellKeyArray[0] && tile[1] === cellKeyArray[1])
+            );
+
+            // Проверяем целостность территории после удаления
+            const components = findConnectedComponents(targetTerritory.tiles);
+
+            // Если территория распалась на несколько, предупреждаем пользователя и создаем новые территории
+            if (components.length > 1) {
+                const confirmed = await showConfirmDialog(
+                    `Territory split detected! The territory has split into ${components.length} parts. Do you want to create ${components.length - 1} new territories?`
+                );
+
+                if (confirmed) {
+                    // Оставляем первый компонент в исходной территории
+                    targetTerritory.tiles = components[0];
+
+                    // Создаем новые территории для остальных компонентов
+                    for (let i = 1; i < components.length; i++) {
+                        gameState.territories_data.push({
+                            owner: owner,
+                            funds: Math.floor(targetTerritory.funds / components.length), // Распределяем средства
+                            tiles: components[i]
+                        });
+                    }
+
+                    // Уменьшаем средства исходной территории
+                    targetTerritory.funds = Math.floor(targetTerritory.funds / components.length);
+                } else {
+                    // Пользователь отказался от разделения, возвращаем клетку обратно
+                    targetTerritory.tiles.push(cellKeyArray);
+                    throw new Error('Operation cancelled: territory would be split');
+                }
+            }
+
+            // Если территория осталась пустой, удаляем её
+            if (targetTerritory.tiles.length === 0) {
+                gameState.territories_data = gameState.territories_data.filter(t => t !== targetTerritory);
+            }
+        }
+
+        // Добавляет клетку в территорию нового владельца
+        async function addToTerritory(cellKey, newOwner) {
+            // Находим все территории нового владельца
+            const ownerTerritories = gameState.territories_data.filter(t => t.owner === newOwner);
+
+            if (ownerTerritories.length === 0) {
+                // Если территорий нет, создаем новую
+                gameState.territories_data.push({
+                    owner: newOwner,
+                    funds: 10, // Начальные средства
+                    tiles: [[parseInt(cellKey.split(',')[0]), parseInt(cellKey.split(',')[1])]]
+                });
+                return;
+            }
+
+            // Проверяем, сколько территорий соприкасаются с этой клеткой
+            const cellKeyArray = cellKey.split(',').map(Number);
+            const neighbors = getNeighbors(cellKeyArray);
+
+            // Территории, которые соприкасаются с клеткой
+            const adjacentTerritories = ownerTerritories.filter(territory =>
+                territory.tiles.some(tile =>
+                    neighbors.some(neighbor => neighbor[0] === tile[0] && neighbor[1] === tile[1])
+                )
+            );
+
+            if (adjacentTerritories.length === 0) {
+                // Если нет смежных территорий, предлагаем выбрать любую из существующих или создать новую
+                showTerritoryModal(
+                    "This cell doesn't connect to any existing territory. Choose a territory to add it to:",
+                    ownerTerritories,
+                    (selected) => {
+                        if (selected === 'new') {
+                            // Создаем новую территорию
+                            gameState.territories_data.push({
+                                owner: newOwner,
+                                funds: 10, // Начальные средства
+                                tiles: [cellKeyArray]
+                            });
+                        } else {
+                            // Добавляем в выбранную территорию
+                            selected.tiles.push(cellKeyArray);
+                        }
+                        updateUI();
+                    }
+                );
+            } else if (adjacentTerritories.length === 1) {
+                // Если одна смежная территория, добавляем в неё
+                adjacentTerritories[0].tiles.push(cellKeyArray);
+            } else {
+                // Если несколько смежных территорий, предлагаем объединить их
+                const confirmed = await showConfirmDialog(
+                    `This cell connects ${adjacentTerritories.length} territories. Do you want to merge them?`
+                );
+
+                if (confirmed) {
+                    // Объединяем территории
+                    const mergedTiles = [].concat(...adjacentTerritories.map(t => t.tiles));
+                    mergedTiles.push(cellKeyArray); // Добавляем новую клетку
+
+                    // Суммируем средства
+                    const totalFunds = adjacentTerritories.reduce((sum, t) => sum + t.funds, 0);
+
+                    // Удаляем старые территории
+                    gameState.territories_data = gameState.territories_data.filter(t => !adjacentTerritories.includes(t));
+
+                    // Создаем новую объединенную территорию
+                    gameState.territories_data.push({
+                        owner: newOwner,
+                        funds: totalFunds,
+                        tiles: mergedTiles
+                    });
+                } else {
+                    // Пользователь отказался от объединения, предлагаем выбрать одну территорию
+                    showTerritoryModal(
+                        "Choose a territory to add this cell to:",
+                        adjacentTerritories,
+                        (selected) => {
+                            selected.tiles.push(cellKeyArray);
+                            updateUI();
+                        }
+                    );
+                }
+            }
+        }
+
+        // Показывает диалог подтверждения
+        async function showConfirmDialog(message) {
+            return new Promise(resolve => {
+                if (confirm(message)) {
+                    resolve(true);
+                } else {
+                    resolve(false);
+                }
+            });
+        }
+
+        // Находит компоненты связности в наборе клеток
+        function findConnectedComponents(tiles) {
+            if (!tiles || tiles.length === 0) return [];
+
+            const components = [];
+            const visited = new Set();
+
+            for (const tile of tiles) {
+                const tileKey = `${tile[0]},${tile[1]}`;
+                if (visited.has(tileKey)) continue;
+
+                // Начинаем новый компонент
+                const component = [];
+                const queue = [tile];
+                visited.add(tileKey);
+
+                while (queue.length > 0) {
+                    const current = queue.shift();
+                    component.push(current);
+
+                    // Получаем соседей
+                    const neighbors = getNeighbors(current);
+
+                    // Проверяем каждого соседа
+                    for (const neighbor of neighbors) {
+                        const neighborKey = `${neighbor[0]},${neighbor[1]}`;
+
+                        // Если сосед входит в tiles и еще не посещен
+                        if (!visited.has(neighborKey) && tiles.some(t => t[0] === neighbor[0] && t[1] === neighbor[1])) {
+                            visited.add(neighborKey);
+                            queue.push(neighbor);
+                        }
+                    }
+                }
+
+                components.push(component);
+            }
+
+            return components;
+        }
+
+        // Получает соседей клетки в шестиугольной сетке
+        function getNeighbors(cell) {
+            const [i, j] = cell;
+
+            // Соседи зависят от четности j (из-за шестиугольной сетки)
+            let neighbors;
+
+            if (j % 2 === 0) {
+                // Четные столбцы
+                neighbors = [
+                    [i, j - 1], [i - 1, j - 1],
+                    [i - 1, j], [i - 1, j + 1],
+                    [i, j + 1], [i + 1, j]
+                ];
+            } else {
+                // Нечетные столбцы
+                neighbors = [
+                    [i, j - 1], [i + 1, j - 1],
+                    [i - 1, j], [i + 1, j],
+                    [i, j + 1], [i + 1, j + 1]
+                ];
+            }
+
+            // Фильтруем соседей, выходящих за границы поля
+            return neighbors.filter(([ni, nj]) =>
+                ni >= 0 && ni < gameState.field_data.height &&
+                nj >= 0 && nj < gameState.field_data.width
+            );
+        }
+
+        function drawMap() {
+            if (!ctx || !gameState || !gameState.field_data || !gameState.field_data.cells) return;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Assign colors to players
+            gameState.players.forEach((player, index) => {
+                if (!colors[player]) {
+                    colors[player] = pastelColorPool[index % pastelColorPool.length];
+                }
+            });
+
+            // Draw cells
+            Object.entries(gameState.field_data.cells).forEach(([key, cell]) => {
+                const [iStr, jStr] = key.split(',');
+
+                const i = parseInt(iStr, 10);
+                const j = parseInt(jStr, 10);
+
+                const x = j * 1.5 * radius + radius;
+                let y = i * Math.sqrt(3) * radius + radius;
+                if (j % 2 === 1) {
+                    y += (Math.sqrt(3) * radius) / 2;
+                }
+
+                // Determine color
+                let ownerColor = colors.null;
+                if (cell.owner) {
+                    ownerColor = colors[cell.owner];
+                }
+
+                // Draw the hexagon
+                drawHex(x, y, ownerColor);
+
+                // Draw the entity icon
+                if (cell.entity && cell.entity !== "empty") {
+                    const icon = icons[cell.entity];
+                    if (icon && icon.complete) {
+                        ctx.drawImage(icon, x - iconSize / 2, y - iconSize / 2, iconSize, iconSize);
+                    } else {
+                        ctx.fillStyle = "#000000";
+                        ctx.fillText(cell.entity, x - 10, y + 5);
+                    }
+                }
+
+                // Highlight selected cell
+                if (selectedCell && selectedCell.x === j && selectedCell.y === i) {
+                    highlightHex(x, y, '#00FF00', 3);
+                }
+
+                // Highlight hovered cell
+                if (hoveredCell && hoveredCell.x === j && hoveredCell.y === i) {
+                    highlightHex(x, y, '#FFFF00', 2);
+
+                    // Show coordinates
+                    ctx.fillStyle = "#000000";
+                    ctx.font = "14px Arial";
+                    ctx.fillText(`(${i},${j})`, x - 15, y + 5);
+                }
+            });
+        }
+
+        function drawHex(x, y, color, text = '') {
+            if (!ctx) return;
+
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+                const angle = (Math.PI / 3) * i;
+                const hx = x + radius * Math.cos(angle);
+                const hy = y + radius * Math.sin(angle);
+                i === 0 ? ctx.moveTo(hx, hy) : ctx.lineTo(hx, hy);
+            }
+            ctx.closePath();
+            ctx.fillStyle = color;
+            ctx.fill();
+            ctx.strokeStyle = '#000000';
+            ctx.stroke();
+
+            if (text) {
+                ctx.fillStyle = '#000000';
+                ctx.fillText(text, x - 5, y + 5);
+            }
+        }
+
+        function highlightHex(x, y, color, lineWidth = 2) {
+            if (!ctx) return;
+
+            ctx.strokeStyle = color;
+            ctx.lineWidth = lineWidth;
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+                const angle = (Math.PI / 3) * i;
+                const hx = x + radius * Math.cos(angle);
+                const hy = y + radius * Math.sin(angle);
+                i === 0 ? ctx.moveTo(hx, hy) : ctx.lineTo(hx, hy);
+            }
+            ctx.closePath();
+            ctx.stroke();
+            ctx.lineWidth = 1;
+        }
+
+        function getHexCoordinates(e) {
+            if (!gameState) return null;
+
+            // Get the actual canvas rectangle on screen
+            const rect = canvas.getBoundingClientRect();
+
+            // Calculate scale
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+
+            // Convert click coordinates from CSS pixels to canvas pixels
+            let mouseX = (e.clientX - rect.left) * scaleX;
+            let mouseY = (e.clientY - rect.top) * scaleY;
+
+            // Calculate hex coordinates
+            const j = Math.floor(mouseX / (1.5 * radius));
+
+            if (j % 2 === 1) {
+                mouseY -= (Math.sqrt(3) * radius) / 2;
+            }
+            const i = Math.floor(mouseY / (Math.sqrt(3) * radius));
+
+            if (i >= 0 && i < gameState.field_data.height && j >= 0 && j < gameState.field_data.width) {
+                return { x: j, y: i };
+            }
+            return null;
+        }
+
+        function handleCanvasClick(e) {
+            if (!gameState) return;
+
+            const coord = getHexCoordinates(e);
+            if (!coord) return;
+
+            // Select the cell
+            selectedCell = coord;
+            updateSelectedCellInfo();
+            drawMap();
+        }
+
+        function handleCanvasMouseMove(e) {
+            if (!gameState) return;
+
+            hoveredCell = getHexCoordinates(e);
+            drawMap();
+        }
+
+        function handleCanvasMouseLeave() {
+            hoveredCell = null;
+            drawMap();
+        }
+
+        function showStatus(message, type = 'error') {
+            const statusElem = document.getElementById('status');
+            statusElem.textContent = message;
+            statusElem.style.display = 'block';
+            statusElem.style.color = type === 'success' ? 'green' : 'red';
+
+            setTimeout(() => {
+                statusElem.textContent = '';
+            }, 5000);
+        }
+    </script>
+</body>
+
+</html>

@@ -6,8 +6,17 @@ services:
     container_name: antiyoy_gameserver_app
     expose:
       - "8000"
+    environment:
+      - DEBUG=false
+      - LOG_LEVEL=debug
+      - PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc
+      - GAME_START_COUNTDOWN=5
+      - CORS_ORIGINS=*
     networks:
       - gameserver_app-network
+    volumes:
+      - prometheus_metrics:/tmp/prometheus_multiproc
+    command: gunicorn -c gunicorn_config.py src.server.app:app
 
   gameserver_nginx:
     image: nginx:alpine
@@ -24,3 +33,11 @@ services:
 networks:
   gameserver_app-network:
     driver: bridge
+
+volumes:
+  prometheus_metrics:
+    driver: local
+  prometheus_data:
+    driver: local  
+  grafana_data:
+    driver: local

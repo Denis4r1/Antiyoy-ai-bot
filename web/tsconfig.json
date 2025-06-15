@@ -1,0 +1,29 @@
+{
+    "compilerOptions": {
+        "target": "es2017",
+        "lib": [
+            "es2017",
+            "dom",
+            "es2015.promise"
+        ],
+        "types": [
+
+        ],
+        "rootDir": "./static/js",
+        "outDir": "./static/js/compiled",
+        "module": "commonjs",
+        "experimentalDecorators": true,
+        "emitDecoratorMetadata": true,
+        "sourceMap": true,
+        "declaration": true
+    },
+    "include": [
+        "./static/js/*.ts"
+    ],
+    "exclude": [
+        "./static/js/compiled/**/*",
+        "node_modules",
+        "dist",
+        "tests"
+    ]
+}

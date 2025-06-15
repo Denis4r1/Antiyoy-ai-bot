@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Hexagonal grid game</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 50%, #2d1b69 100%);
+            color: #e2e8f0;
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background:
+                radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(255, 119, 198, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 40% 40%, rgba(120, 219, 255, 0.1) 0%, transparent 50%);
+            animation: backgroundShift 20s ease-in-out infinite;
+        }
+
+        @keyframes backgroundShift {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.8;
+            }
+        }
+
+        #game {
+            width: 100%;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 32px;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.05);
+            animation: slideIn 0.8s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .grid-container {
+            display: grid;
+            gap: 20px;
+        }
+
+        @media (max-width: 600px) {
+            .grid-container {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto auto auto;
+                grid-template-areas:
+                    "canvas"
+                    "controls"
+                    "territory";
+            }
+        }
+
+        @media (min-width: 601px) {
+            .grid-container {
+                grid-template-columns: 1fr 250px;
+                grid-template-rows: auto auto;
+                grid-template-areas:
+                    "canvas territory"
+                    "controls controls";
+            }
+        }
+
+        #gameCanvasContainer {
+            grid-area: canvas;
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 10px;
+        }
+
+        canvas {
+            border: none;
+            max-width: 100%;
+            height: auto;
+            display: block;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        #controls {
+            grid-area: controls;
+            padding: 10px;
+        }
+
+        #territoryInfoContainer {
+            grid-area: territory;
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 20px;
+            min-height: 100px;
+        }
+
+        fieldset.button-group {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        legend {
+            font-weight: 600;
+            color: #cbd5e0;
+            font-size: 1rem;
+            padding: 0 8px;
+        }
+
+        .button-group button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            margin: 5px;
+            display: inline-block;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        button:hover::before {
+            left: 100%;
+        }
+
+        #status {
+            margin-top: 20px;
+            padding: 12px 16px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, rgba(245, 101, 101, 0.15) 0%, rgba(245, 101, 101, 0.1) 100%);
+            border: 1px solid rgba(245, 101, 101, 0.3);
+            color: #fc8181;
+            font-weight: 500;
+        }
+
+        #userNameDisplay,
+        #turnStatus {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #cbd5e0;
+            margin-bottom: 16px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="game">
+        <div id="userNameDisplay"></div>
+        <div id="turnStatus"></div>
+        <div class="grid-container">
+            <div id="gameCanvasContainer">
+                <canvas id="gameCanvas"></canvas>
+            </div>
+            <div id="controls">
+                <fieldset class="button-group">
+                    <legend>Юниты</legend>
+                    <button id="spawnUnit1Btn">Unit 1</button>
+                    <button id="spawnUnit2Btn">Unit 2</button>
+                    <button id="spawnUnit3Btn">Unit 3</button>
+                    <button id="spawnUnit4Btn">Unit 4</button>
+                </fieldset>
+                <fieldset class="button-group">
+                    <legend>Постройки</legend>
+                    <button id="buildFarmBtn">Farm</button>
+                    <button id="buildWeakTowerBtn">Weak Tower</button>
+                    <button id="buildStrongTowerBtn">Strong Tower</button>
+                </fieldset>
+                <fieldset class="button-group">
+                    <legend>Ход</legend>
+                    <button id="endTurnBtn">End Turn</button>
+                    <button id="deselectBtn">Deselect</button>
+                </fieldset>
+            </div>
+            <div id="territoryInfoContainer">
+                <div id="territoryInfo"></div>
+            </div>
+        </div>
+        <div id="status"></div>
+    </div>
+    <script type="module" src="/static/js/compiled/gamepage.js"></script>
+</body>
+
+</html>

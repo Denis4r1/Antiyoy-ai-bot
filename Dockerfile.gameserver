@@ -1,37 +1,55 @@
 FROM python:3.9-slim AS builder
-
 RUN apt-get update && apt-get install -y curl gnupg && \
     curl -fsSL https://deb.nodesource.com/setup_16.x | bash - && \
     apt-get install -y nodejs && \
     rm -rf /var/lib/apt/lists/*
-
 RUN npm install -g typescript
-
 WORKDIR /app
 
-COPY requirements.txt .
+COPY requirements-gameserver.txt .
 RUN pip install --upgrade pip && \
-    pip install --no-cache-dir --prefer-binary -r requirements.txt
+    pip install --no-cache-dir --prefer-binary -r requirements-gameserver.txt
 
-COPY . .
-RUN tsc --noEmit
+# Копируем только то, что нужно для компиляции TS
+COPY web/tsconfig.json ./web/
+COPY web/static/js/ ./web/static/js/
+
+# Компилируем TypeScript
+RUN cd web && tsc
 
 FROM python:3.9-slim
-
 WORKDIR /app
 
-COPY requirements.txt .
+COPY requirements-gameserver.txt .
 RUN pip install --upgrade pip && \
-    pip install --no-cache-dir --prefer-binary -r requirements.txt
+    pip install --no-cache-dir --prefer-binary -r requirements-gameserver.txt
 
-RUN useradd --create-home appuser
+RUN useradd --create-home --shell /bin/bash appuser
+
+RUN mkdir -p /tmp/prometheus_multiproc && \
+    chown appuser:appuser /tmp/prometheus_multiproc
+
+COPY gunicorn_config.py .
+
+
+# Копируем исходный код
+COPY src/ ./src/
+COPY web/templates/ ./web/templates/
+COPY web/static/ ./web/static/
+
+# Копируем скомпилированные JS файлы из builder
+COPY --from=builder /app/web/static/js/compiled/ ./web/static/js/compiled/
+
+# Меняем владельца после всех копирований
+RUN chown -R appuser:appuser /app
 
 USER appuser
 
-
-COPY --from=builder /app /app
+ENV PYTHONPATH=/app
 
 EXPOSE 8000
 
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
 
-CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "server:app", "--bind", "0.0.0.0:8000"]
+CMD ["gunicorn", "-c", "gunicorn_config.py", "src.server.app:app"]
