@@ -1,9 +1,11 @@
 name: Auto-format Python
 
-# Запускать на каждый пуш в ветку main (или любую другую по вкусу)
-on:
-  push
+# даём GITHUB_TOKEN права на запись в содержимое репозитория
+permissions:
+  contents: write
 
+on:
+  push:          # срабатывает на любых ветках
 
 jobs:
   format:
@@ -12,7 +14,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0           # чтобы была история для пуша
+          fetch-depth: 0
+          # сохраняем credentials для пуша
+          persist-credentials: true
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -23,8 +27,7 @@ jobs:
         run: pip install black
 
       - name: Run Black
-        run: |
-          black .
+        run: black .
 
       - name: Commit formatted code
         run: |
@@ -33,7 +36,7 @@ jobs:
           git add .
           git commit -m "ci: авто-форматирование Black" || echo "No changes to commit"
 
-      - name: Push changes
-        uses: ad-m/github-push-action@v0.6.0
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push changes back to this branch
+        run: |
+          # github.ref_name — имя ветки, в которой сработал workflow
+          git push origin HEAD:refs/heads/${{ github.ref_name }}
