@@ -1,5 +1,12 @@
-from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi import APIRouter, HTTPException, Query, Depends, status, Path
 from fastapi.responses import HTMLResponse
+from ..models.api_models import (
+    CreateRoomResponse,
+    JoinRoomResponse,
+    RoomStats,
+    HealthResponse,
+    ErrorResponse,
+)
 from ..services.game_service import get_game_service
 from ..config import TEMPLATES_DIR
 from ..monitoring.logging_config import get_logger
@@ -12,7 +19,17 @@ def create_api_router(game_manager=None):
     """Создать API роутер с зависимостями"""
     router = APIRouter()
 
-    @router.get("/")
+    @router.get(
+        "/",
+        response_class=HTMLResponse,
+        tags=["UI"],
+        summary="Главная страница - лобби",
+        description="Возвращает HTML страницу для лобби",
+        responses={
+            200: {"description": "HTML страница лобби"},
+            500: {"description": "Ошибка загрузки страницы", "model": ErrorResponse},
+        },
+    )
     async def get_index():
         """Главная страница - лобби"""
         try:
@@ -24,7 +41,20 @@ def create_api_router(game_manager=None):
             errors_total.labels(type="api").inc()
             raise HTTPException(status_code=500, detail="Failed to load lobby page")
 
-    @router.get("/game/{room_id}")
+    @router.get(
+        "/game/{room_id}",
+        response_class=HTMLResponse,
+        tags=["UI"],
+        summary="Страница игры",
+        description="Возвращает HTML страницу игрового процесса для указанной комнаты",
+        responses={
+            200: {"description": "HTML страница игры"},
+            400: {"description": "Игра еще не началась", "model": ErrorResponse},
+            403: {"description": "Недействительный токен", "model": ErrorResponse},
+            404: {"description": "Комната не найдена", "model": ErrorResponse},
+            500: {"description": "Ошибка загрузки страницы", "model": ErrorResponse},
+        },
+    )
     async def get_game_page(room_id: str, token: str = Query(None)):
         """Страница игры"""
         try:
@@ -64,7 +94,23 @@ def create_api_router(game_manager=None):
             errors_total.labels(type="api").inc()
             raise HTTPException(status_code=500, detail="Failed to load game page")
 
-    @router.post("/create_room")
+    @router.post(
+        "/create_room",
+        response_model=CreateRoomResponse,
+        status_code=status.HTTP_201_CREATED,
+        tags=["Lobby"],
+        summary="Создать новую игровую комнату",
+        description="Создает новую комнату для игры и возвращает её уникальный ID",
+        responses={
+            201: {
+                "description": "Комната успешно создана",
+                "content": {
+                    "application/json": {"example": {"room_id": "room_abc123"}}
+                },
+            },
+            500: {"description": "Ошибка создания комнаты", "model": ErrorResponse},
+        },
+    )
     def create_room():
         """Создать новую комнату"""
         try:
@@ -81,7 +127,33 @@ def create_api_router(game_manager=None):
             errors_total.labels(type="api").inc()
             raise HTTPException(status_code=500, detail="Failed to create room")
 
-    @router.post("/join_room")
+    @router.post(
+        "/join_room",
+        response_model=JoinRoomResponse,
+        tags=["Lobby"],
+        summary="Присоединиться к игровой комнате",
+        description="Добавляет игрока в указанную комнату. Имя должно быть уникальным в пределах комнаты.",
+        responses={
+            200: {
+                "description": "Успешное подключение к комнате",
+                "content": {
+                    "application/json": {
+                        "example": {
+                            "detail": "Вы успешно подключились к комнате",
+                            "room_id": "room_abc123",
+                            "players_count": 2,
+                        }
+                    }
+                },
+            },
+            400: {
+                "description": "Игра уже началась или имя занято",
+                "model": ErrorResponse,
+            },
+            404: {"description": "Комната не найдена", "model": ErrorResponse},
+            500: {"description": "Ошибка подключения", "model": ErrorResponse},
+        },
+    )
     def join_room(
         room_id: str = Query(..., description="ID комнаты"),
         token: str = Query(..., description="Токен пользователя"),
@@ -133,7 +205,30 @@ def create_api_router(game_manager=None):
             errors_total.labels(type="api").inc()
             raise HTTPException(status_code=500, detail="Failed to join room")
 
-    @router.get("/rooms/stats")
+    @router.get(
+        "/rooms/stats",
+        response_model=RoomStats,
+        tags=["Monitoring"],
+        summary="Статистика игровых комнат",
+        description="Возвращает подробную статистику по всем комнатам, играм и подключениям",
+        responses={
+            200: {
+                "description": "Статистика успешно получена",
+                "content": {
+                    "application/json": {
+                        "example": {
+                            "total_rooms": 5,
+                            "active_games": 2,
+                            "total_players": 8,
+                            "lobby_connections": 6,
+                            "game_connections": 4,
+                        }
+                    }
+                },
+            },
+            500: {"description": "Ошибка получения статистики", "model": ErrorResponse},
+        },
+    )
     def get_rooms_stats():
         """Получить статистику по комнатам"""
         try:
@@ -148,7 +243,29 @@ def create_api_router(game_manager=None):
             errors_total.labels(type="api").inc()
             raise HTTPException(status_code=500, detail="Failed to get stats")
 
-    @router.get("/health")
+    @router.get(
+        "/health",
+        response_model=HealthResponse,
+        tags=["Monitoring"],
+        summary="Проверка состояния сервиса",
+        description="Возвращает текущее состояние сервиса и основные метрики работоспособности",
+        responses={
+            200: {
+                "description": "Сервис работает нормально",
+                "content": {
+                    "application/json": {
+                        "example": {
+                            "status": "healthy",
+                            "rooms": 5,
+                            "games": 2,
+                            "players": 8,
+                        }
+                    }
+                },
+            },
+            500: {"description": "Сервис неисправен", "model": ErrorResponse},
+        },
+    )
     def health_check():
         """Проверка здоровья сервиса"""
         try:
