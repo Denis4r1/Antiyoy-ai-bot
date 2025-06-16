@@ -10,6 +10,7 @@ class ActionProbability(BaseModel):
         action_id (int): Уникальный идентификатор действия.
         probability (float): Вероятность выбора данного действия, в диапазоне [0, 1].
     """
+
     action_id: int
     probability: float
 
@@ -22,6 +23,7 @@ class ProbabilitiesResponse(BaseModel):
         probabilities (List[ActionProbability]): Список объектов, содержащих идентификаторы действий и их вероятности.
         best_action_id (int): Идентификатор действия с наибольшей вероятностью.
     """
+
     probabilities: List[ActionProbability]
     best_action_id: int
 

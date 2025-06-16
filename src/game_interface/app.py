@@ -5,7 +5,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
 from pathlib import Path
-from .models import GameState, Action, ActionRequest, ApplyActionResponse, ProbabilitiesResponse, ActionProbability
+from .models import (
+    GameState,
+    Action,
+    ActionRequest,
+    ApplyActionResponse,
+    ProbabilitiesResponse,
+    ActionProbability,
+)
 from .utils import reconstruct_game, _cached_get_actions, _cached_apply_action
 from src.game.gamecontroller import GameController
 from typing import List
@@ -95,9 +102,13 @@ async def log_player_demo():
 )
 def get_action_probabilities(state: GameState):
     value, probs = evaluator.evaluate(state.model_dump(), return_all=True)
-    action_probabilities = [ActionProbability(action_id=i, probability=p) for i, p in enumerate(probs)]
+    action_probabilities = [
+        ActionProbability(action_id=i, probability=p) for i, p in enumerate(probs)
+    ]
     best_action_id = max(range(len(probs)), key=lambda i: probs[i])
-    return ProbabilitiesResponse(probabilities=action_probabilities, best_action_id=best_action_id)
+    return ProbabilitiesResponse(
+        probabilities=action_probabilities, best_action_id=best_action_id
+    )
 
 
 @app.post(
