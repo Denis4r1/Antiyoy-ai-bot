@@ -63,7 +63,7 @@ document.addEventListener("DOMContentLoaded", () => {
         chatWindow.scrollTop = chatWindow.scrollHeight;
     }
 
-    async function showLobby(roomId: string, playerName: string) {
+    async function showLobby(roomId: string, playerName: string, isImplicit: boolean = false) {
         // Отправляем запрос на подключение к комнате с указанием имени
         try {
             const joinRes = await fetch(
@@ -97,7 +97,11 @@ document.addEventListener("DOMContentLoaded", () => {
         } catch (error) {
             localStorage.removeItem("currentRoom");
             console.error("Ошибка запроса join_room:", error);
-            alert(error.message || "Неизвестная ошибка подключения к комнате");
+
+            // Показываем алерт только при явном подключении
+            if (!isImplicit) {
+                alert(error.message || "Неизвестная ошибка подключения к комнате");
+            }
             return;
         }
 
@@ -218,6 +222,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const savedRoom = localStorage.getItem("currentRoom");
     const savedName = localStorage.getItem("playerName");
     if (savedRoom && savedName) {
-        showLobby(savedRoom, savedName);
+        showLobby(savedRoom, savedName, true); // добавляем true для неявного подключения
     }
 });
