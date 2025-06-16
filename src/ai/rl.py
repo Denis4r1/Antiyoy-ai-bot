@@ -7,7 +7,7 @@ from torch.utils.data import Dataset, DataLoader, random_split
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import numpy as np
-from mcts import GameState, Action, AsyncGameApi
+from .mcts import GameState, Action, AsyncGameApi
 
 C, A_GLOBAL = 12, 291
 BOARD_SIZE: Tuple[int, int] = (8, 8)
