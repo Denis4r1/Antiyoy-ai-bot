@@ -6,73 +6,126 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Game State Viewer</title>
     <style>
-        :root {
-            --color-bg: #f5f7fa;
-            --color-primary: #007bff;
-            --color-primary-hover: #0056b3;
-            --color-secondary: #6c757d;
-            --color-text: #333;
-            --border-radius: 6px;
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
 
         body {
-            margin: 0;
-            padding: 20px;
-            background: var(--color-bg);
-            font-family: sans-serif;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 50%, #2d1b69 100%);
+            color: #e2e8f0;
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            padding: 32px;
             display: flex;
             flex-direction: column;
-            height: 100vh;
-            box-sizing: border-box;
-            color: var(--color-text);
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background:
+                radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(255, 119, 198, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 40% 40%, rgba(120, 219, 255, 0.1) 0%, transparent 50%);
+            animation: backgroundShift 20s ease-in-out infinite;
+        }
+
+        @keyframes backgroundShift {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.8;
+            }
         }
 
         .controls {
             display: flex;
-            gap: 8px;
+            gap: 12px;
             align-items: center;
-            margin-bottom: 8px;
+            margin-bottom: 16px;
             flex-wrap: wrap;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
         }
 
-        .controls button,
+        .controls label,
+        .controls input,
         .controls select,
-        .controls input[type=checkbox],
-        .controls label {
+        .controls button {
             font-size: 14px;
+            color: #e2e8f0;
+        }
+
+        .controls input[type="text"],
+        .controls select {
+            padding: 8px 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            color: #e2e8f0;
+            transition: all 0.3s ease;
+        }
+
+        .controls input[type="text"]:focus,
+        .controls select:focus {
+            outline: none;
+            border-color: #667eea;
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
 
         .controls button {
-            padding: 0 12px;
-            height: 36px;
+            padding: 8px 16px;
             border: none;
-            border-radius: 4px;
-            background: var(--color-primary);
-            color: #fff;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
             cursor: pointer;
-            transition: background .2s;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
         }
 
         .controls button:hover {
-            background: var(--color-primary-hover);
-        }
-
-        .controls input[type=range] {
-            flex: 1;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
         }
 
         .main {
-            flex: 1;
             display: flex;
             gap: 20px;
+            width: 100%;
+            max-width: 1200px;
+            height: 600px;
         }
 
         .left,
         .right {
-            background: #fff;
-            border-radius: var(--border-radius);
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-            padding: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
             display: flex;
             flex-direction: column;
         }
@@ -91,26 +144,18 @@
             justify-content: center;
             align-items: center;
             overflow: hidden;
-            border: 2px dashed #ccc;
-            border-radius: var(--border-radius);
+            border-radius: 12px;
             flex: 1;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
         }
 
         #gameCanvas {
             position: absolute;
             top: 0;
             left: 0;
-            background: #fafafa;
-        }
-
-        #canvasWrap.file-loaded {
-            border: none;
-        }
-
-        .gif-btn {
-            width: auto;
-            padding: 0 12px;
-            border-radius: 18px;
+            background: #1a1a3e;
+            border-radius: 12px;
         }
 
         .drop-zone {
@@ -122,11 +167,12 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            background: rgba(255, 255, 255, 0.9);
-            color: #6c757d;
+            background: rgba(255, 255, 255, 0.1);
+            color: #a0aec0;
             font-size: 18px;
             z-index: 10;
             pointer-events: none;
+            border-radius: 12px;
         }
 
         .drop-zone.hidden {
@@ -137,11 +183,21 @@
             flex: 1;
             width: 100%;
             resize: none;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            padding: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 12px;
             font-size: 14px;
-            background: #f8f9fa;
+            background: rgba(255, 255, 255, 0.05);
+            color: #e2e8f0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        #stats {
+            margin-bottom: 12px;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            color: #a0aec0;
         }
 
         #frameCounter {
@@ -149,8 +205,15 @@
             text-align: center;
             font-family: monospace;
             font-size: 14px;
-            color: var(--color-text);
+            color: #e2e8f0;
             user-select: none;
+        }
+
+        h4 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #cbd5e0;
+            margin-bottom: 8px;
         }
     </style>
 </head>
@@ -163,10 +226,9 @@
         </select>
         <button id="trackBtn">Отслеживать</button>
         <label><input type="checkbox" id="autoRefresh"> Авто‑обновление</label>
-        <span id="trackStatus" style="font-style:italic; color: var(--color-secondary);"></span>
-        <!-- остальной код контролов -->
+        <span id="trackStatus" style="font-style:italic; color: #a0aec0;"></span>
         <input type="file" id="fileInput" accept=".json,.jsonl,.txt">
-        <button id="createMp4Btn" class="gif-btn">Создать MP4</button>
+        <button id="createMp4Btn">Создать MP4</button>
         <span id="gifProgress"></span>
         <button id="prevBtn">⏮</button>
         <button id="playBtn">▶</button>
@@ -187,9 +249,7 @@
             </div>
         </div>
         <div class="right">
-            <div id="stats" style="margin-bottom: 12px; padding: 8px; background: #f0f0f0; border-radius: 4px;">
-                <!-- сюда JS будет вставлять статистику -->
-            </div>
+            <div id="stats"></div>
             <h4>JSON текущего кадра</h4>
             <textarea id="jsonEditor" readonly></textarea>
         </div>
@@ -224,7 +284,6 @@
             const createMp4Btn = document.getElementById('createMp4Btn');
             const mp4Progress = document.getElementById('gifProgress');
 
-            // новые элементы
             const logSelect = document.getElementById('logSelect');
             const trackBtn = document.getElementById('trackBtn');
             const autoRefresh = document.getElementById('autoRefresh');
@@ -241,7 +300,7 @@
                     promises.push(new Promise((resolve, reject) => {
                         img.onload = resolve;
                         img.onerror = () => reject(new Error(`Не удалось загрузить /static/${k}.png`));
-                        img.src = `/static/${k}.png`;
+                        img.src = `/static/images/${k}.png`;
                     }));
                 }
                 return Promise.all(promises);
@@ -278,10 +337,8 @@
                 autoRefresh.addEventListener('change', toggleAutoRefresh);
             }
 
-            // ----------------- логика трекинга -----------------
-
             async function fetchLogList() {
-                console.log("Fetching log list"); // Для диагностики
+                console.log("Fetching log list");
                 const apiBase = document.getElementById('apiBase').value.trim();
                 const url = apiBase ? apiBase + '/logs' : '/logs';
                 try {
@@ -293,7 +350,8 @@
                     console.error("Не удалось получить список логов:", e);
                 }
             }
-   async function loadLogFile() {
+
+            async function loadLogFile() {
                 if (!currentLog) return;
                 const apiBase = document.getElementById('apiBase').value.trim();
                 const url = apiBase ? apiBase + '/logs/' + currentLog + '?_=' + Date.now() : '/logs/' + currentLog + '?_=' + Date.now();
@@ -306,9 +364,8 @@
                     states = newStates;
                     slider.max = states.length - 1;
                     if (autoRefresh.checked) {
-                        idx = states.length - 1; // Всегда перематываем на последний кадр при автообновлении
+                        idx = states.length - 1;
                     } else {
-                        // Оставляем idx на текущем кадре, если он в пределах нового количества кадров
                         idx = Math.min(idx, states.length - 1);
                     }
                     trackStatus.textContent = `Кадров: ${states.length}`;
@@ -318,6 +375,7 @@
                     trackStatus.textContent = `Ошибка: ${e.message}`;
                 }
             }
+
             function startTracking() {
                 const sel = logSelect.value;
                 if (!sel) return alert("Выберите файл для отслеживания");
@@ -337,16 +395,13 @@
 
             function toggleAutoRefresh() {
                 if (trackInterval) {
-                    // если уже идёт трекинг — перенастроим таймер
                     stopTracking();
                     if (autoRefresh.checked) trackInterval = setInterval(loadLogFile, 5000);
                 }
             }
 
-            // ----------------------------------------------------
-
             async function handleFile(e) {
-                const file = e.dataTransfer?.files[0] || fileInput.files[0];
+                const file = (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) || (fileInput && fileInput.files && fileInput.files[0]);
                 if (!file) return;
                 stopTracking();
                 try {
@@ -362,7 +417,11 @@
             }
 
             function onDragEnter(e) { e.preventDefault(); if (dragCounter++ === 0) dropZone.classList.remove('hidden'); }
-            function onDragLeave(e) { e.preventDefault(); if (--dragCounter === 0) dropZone.classList.add('hidden'); }
+            function onDragLeave(e) {
+                e.preventDefault();
+                if (dragCounter > 0) dragCounter--;
+                if (dragCounter === 0) dropZone.classList.add('hidden');
+            }
             function onDragOver(e) { e.preventDefault(); }
             function onDrop(e) { e.preventDefault(); dragCounter = 0; dropZone.classList.add('hidden'); handleFile(e); }
 
@@ -424,7 +483,7 @@
                 canvas.style.height = canvas.height + 'px';
                 canvas.style.left = offsetX + 'px';
 
-                ctx.fillStyle = "#fff";
+                ctx.fillStyle = "#1a1a3e";
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 ctx.setTransform(scale, 0, 0, scale, 0, 0);
 
@@ -444,7 +503,7 @@
                         if (img && img.complete && img.naturalWidth) {
                             ctx.drawImage(img, x - ICON_SIZE / 2, y - ICON_SIZE / 2, ICON_SIZE, ICON_SIZE);
                         } else {
-                            ctx.fillStyle = '#000';
+                            ctx.fillStyle = '#e2e8f0';
                             ctx.font = '12px sans-serif';
                             ctx.fillText(cell.entity, x - 10, y + 4);
                         }
@@ -484,7 +543,6 @@
                 ctx.stroke();
             }
 
-            // запись MP4/WebM
             function recordMp4() {
                 const fps = Math.max(1, +speedInput.value);
                 const stream = canvas.captureStream(fps);
