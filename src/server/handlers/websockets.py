@@ -19,16 +19,16 @@ def create_websocket_router(
     async def lobby_ws_endpoint(websocket: WebSocket, room_id: str, token: str):
         """
         WebSocket endpoint для лобби комнаты
-        
+
         **Параметры:**
         - room_id: ID игровой комнаты
         - token: Токен игрока (должен быть зарегистрирован в комнате)
-        
+
         **Входящие сообщения:**
         - "READY" - игрок готов к игре
         - "NOT_READY" - игрок не готов
         - текст - сообщение в чат лобби
-        
+
         **Исходящие сообщения:**
         - {"type": "players_update", "players": [...]} - обновление списка игроков
         - "Система: ..." - системные сообщения

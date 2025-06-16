@@ -1,6 +1,12 @@
 from fastapi import APIRouter, HTTPException, Query, Depends, status, Path
 from fastapi.responses import HTMLResponse
-from ..models.api_models import CreateRoomResponse, JoinRoomResponse, RoomStats, HealthResponse, ErrorResponse
+from ..models.api_models import (
+    CreateRoomResponse,
+    JoinRoomResponse,
+    RoomStats,
+    HealthResponse,
+    ErrorResponse,
+)
 from ..services.game_service import get_game_service
 from ..config import TEMPLATES_DIR
 from ..monitoring.logging_config import get_logger
@@ -98,7 +104,9 @@ def create_api_router(game_manager=None):
         responses={
             201: {
                 "description": "Комната успешно создана",
-                "content": {"application/json": {"example": {"room_id": "room_abc123"}}},
+                "content": {
+                    "application/json": {"example": {"room_id": "room_abc123"}}
+                },
             },
             500: {"description": "Ошибка создания комнаты", "model": ErrorResponse},
         },
@@ -138,7 +146,10 @@ def create_api_router(game_manager=None):
                     }
                 },
             },
-            400: {"description": "Игра уже началась или имя занято", "model": ErrorResponse},
+            400: {
+                "description": "Игра уже началась или имя занято",
+                "model": ErrorResponse,
+            },
             404: {"description": "Комната не найдена", "model": ErrorResponse},
             500: {"description": "Ошибка подключения", "model": ErrorResponse},
         },
@@ -242,7 +253,14 @@ def create_api_router(game_manager=None):
             200: {
                 "description": "Сервис работает нормально",
                 "content": {
-                    "application/json": {"example": {"status": "healthy", "rooms": 5, "games": 2, "players": 8}}
+                    "application/json": {
+                        "example": {
+                            "status": "healthy",
+                            "rooms": 5,
+                            "games": 2,
+                            "players": 8,
+                        }
+                    }
                 },
             },
             500: {"description": "Сервис неисправен", "model": ErrorResponse},

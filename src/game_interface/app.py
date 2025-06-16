@@ -92,8 +92,13 @@ async def log_player_demo():
     description="Генерирует state с указанным количеством игроков. Может создать случайное состояние или загрузить базовую карту.",
 )
 def generate_state(
-    num_players: int = Query(2, ge=2, le=4, description="Количество игроков (от 1 до 4), проверено для 2"),
-    random: bool = Query(False, description="Создать случайную (True) или загрузить базовую карту (False)"),
+    num_players: int = Query(
+        2, ge=2, le=4, description="Количество игроков (от 1 до 4), проверено для 2"
+    ),
+    random: bool = Query(
+        False,
+        description="Создать случайную (True) или загрузить базовую карту (False)",
+    ),
 ):
     """Создает новую игру и возвращает ее состояние"""
     try:
@@ -192,7 +197,10 @@ async def list_logs():
 
 
 @app.get(
-    "/logs/{filename}", tags=["Logs"], summary="Скачать лог", description="Возвращает содержимое указанного файла лога, полезно для отслеживания игры в проигрывателе логов в реальном времени"
+    "/logs/{filename}",
+    tags=["Logs"],
+    summary="Скачать лог",
+    description="Возвращает содержимое указанного файла лога, полезно для отслеживания игры в проигрывателе логов в реальном времени",
 )
 async def get_log(filename: str):
     """

@@ -97,11 +97,13 @@ def create_app() -> FastAPI:
     app.include_router(ws_router)
 
     # Метрики Prometheus
-    @app.get("/metrics",
-    response_class=PlainTextResponse,
-    tags=["Monitoring"],
-    summary="Prometheus метрики",
-    description="Метрики")
+    @app.get(
+        "/metrics",
+        response_class=PlainTextResponse,
+        tags=["Monitoring"],
+        summary="Prometheus метрики",
+        description="Метрики",
+    )
     async def get_metrics():
         return get_metrics_response()
 
